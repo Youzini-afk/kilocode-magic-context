@@ -29,12 +29,14 @@ import {
     registerActiveCompartmentRun,
     runCompartmentAgent,
 } from "./compartment-runner";
+import { closeReadOnlySessionDb } from "./read-session-db";
 import { tagMessages } from "./tag-messages";
 
 const tempDirs: string[] = [];
 const originalXdgDataHome = process.env.XDG_DATA_HOME;
 
 afterEach(() => {
+    closeReadOnlySessionDb();
     closeDatabase();
     process.env.XDG_DATA_HOME = originalXdgDataHome;
 
@@ -773,7 +775,7 @@ function createOpenCodeDb(
         parts?: unknown[];
     }>,
 ): void {
-    const dbPath = join(process.env.XDG_DATA_HOME!, "opencode", "opencode.db");
+    const dbPath = join(process.env.XDG_DATA_HOME!, "kilo", "kilo.db");
     mkdirSync(dirname(dbPath), { recursive: true });
     const db = new Database(dbPath);
     try {

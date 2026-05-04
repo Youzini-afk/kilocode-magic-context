@@ -8,7 +8,10 @@ import { closeDatabase, openDatabase } from "../../features/magic-context/storag
 import { setPersistedCompactionMarkerState } from "../../features/magic-context/storage-meta-persisted";
 import { Database } from "../../shared/sqlite";
 import { closeQuietly } from "../../shared/sqlite-helpers";
-import { checkCompactionMarkerConsistency } from "./compaction-marker-manager";
+import {
+    checkCompactionMarkerConsistency,
+    closeCompactionMarkerConnection,
+} from "./compaction-marker-manager";
 
 const tempDirs: string[] = [];
 const originalXdgDataHome = process.env.XDG_DATA_HOME;
@@ -17,17 +20,17 @@ function useTempDataHome(prefix: string): string {
     const dir = mkdtempSync(join(tmpdir(), prefix));
     tempDirs.push(dir);
     process.env.XDG_DATA_HOME = dir;
-    // Match the getDataDir() layout the plugin expects. opencode.db lives
-    // under opencode/, while magic-context's own DB now lives at the shared
-    // cortexkit path. Create both parent directories so the OpenCode-side DB
-    // file write succeeds and openDatabase() finds a clean target.
-    mkdirSync(join(dir, "opencode"), { recursive: true });
-    mkdirSync(join(dir, "cortexkit", "magic-context"), { recursive: true });
+    // Match the Kilo data layout: kilo.db sits under kilo/, while Magic
+    // Context's own DB sits under Kilo's plugin storage directory.
+    mkdirSync(join(dir, "kilo"), { recursive: true });
+    mkdirSync(join(dir, "kilo", "storage", "plugin", "kilocode-magic-context"), {
+        recursive: true,
+    });
     return dir;
 }
 
 function createOpenCodeDb(dataHome: string): Database {
-    const dbPath = join(dataHome, "opencode", "opencode.db");
+    const dbPath = join(dataHome, "kilo", "kilo.db");
     const db = new Database(dbPath);
     db.exec("PRAGMA journal_mode=WAL");
     db.exec(
@@ -57,6 +60,7 @@ function insertPart(db: Database, id: string): void {
 }
 
 afterEach(() => {
+    closeCompactionMarkerConnection();
     closeDatabase();
     process.env.XDG_DATA_HOME = originalXdgDataHome;
     for (const dir of tempDirs) {

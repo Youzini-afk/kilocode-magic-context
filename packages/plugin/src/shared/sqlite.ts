@@ -59,6 +59,128 @@ const sqliteModule = isBun
 //   - better-sqlite3 → default export
 const DatabaseImpl = isBun ? sqliteModule.Database : sqliteModule.default;
 
+function bindMethods<T extends object>(target: T, prop: string | symbol, receiver: unknown): unknown {
+    const value = Reflect.get(target, prop, receiver);
+    return typeof value === "function" ? value.bind(target) : value;
+}
+
+function trackStatement<T extends object>(statement: T, statements: Set<object>): T {
+    statements.add(statement);
+    return new Proxy(statement, {
+        get(target, prop, receiver) {
+            if (prop === "finalize") {
+                return (...args: unknown[]) => {
+                    statements.delete(statement);
+                    const finalize = Reflect.get(target, prop, receiver);
+                    return typeof finalize === "function" ? finalize.apply(target, args) : undefined;
+                };
+            }
+            return bindMethods(target, prop, receiver);
+        },
+    });
+}
+
+function trackDatabase<T extends object>(database: T): T {
+    const statements = new Set<object>();
+    const rawPrepare = Reflect.get(database, "prepare") as (...args: unknown[]) => unknown;
+    let transactionDepth = 0;
+
+    const exec = (sql: string) => {
+        const fn = Reflect.get(database, "exec") as (sql: string) => unknown;
+        return fn.call(database, sql);
+    };
+
+    const createTransaction = (fn: (...args: unknown[]) => unknown, mode: string) => {
+        return (...args: unknown[]) => {
+            const nested = transactionDepth > 0;
+            const savepoint = `kilo_tx_${transactionDepth + 1}`;
+            if (nested) {
+                exec(`SAVEPOINT ${savepoint}`);
+            } else {
+                exec(`BEGIN ${mode}`);
+            }
+            transactionDepth++;
+            try {
+                const result = fn(...args);
+                transactionDepth--;
+                if (nested) {
+                    exec(`RELEASE SAVEPOINT ${savepoint}`);
+                } else {
+                    exec("COMMIT");
+                }
+                return result;
+            } catch (error) {
+                transactionDepth--;
+                try {
+                    if (nested) {
+                        exec(`ROLLBACK TO SAVEPOINT ${savepoint}`);
+                        exec(`RELEASE SAVEPOINT ${savepoint}`);
+                    } else {
+                        exec("ROLLBACK");
+                    }
+                } catch {
+                    // Preserve the original transaction error.
+                }
+                throw error;
+            }
+        };
+    };
+
+    return new Proxy(database, {
+        get(target, prop, receiver) {
+            if (prop === "transaction") {
+                return (fn: (...args: unknown[]) => unknown) => {
+                    const deferred = createTransaction(fn, "DEFERRED");
+                    const immediate = createTransaction(fn, "IMMEDIATE");
+                    const exclusive = createTransaction(fn, "EXCLUSIVE");
+                    return Object.assign(deferred, {
+                        default: deferred,
+                        deferred,
+                        immediate,
+                        exclusive,
+                        database: target,
+                    });
+                };
+            }
+            if (prop === "prepare") {
+                if (Object.prototype.hasOwnProperty.call(target, "prepare")) {
+                    return bindMethods(target, prop, receiver);
+                }
+                return (...args: unknown[]) => {
+                    const statement = rawPrepare.apply(target, args);
+                    if (statement && typeof statement === "object") {
+                        return trackStatement(statement, statements);
+                    }
+                    return statement;
+                };
+            }
+            if (prop === "close") {
+                return (...args: unknown[]) => {
+                    for (const statement of Array.from(statements)) {
+                        try {
+                            const finalize = Reflect.get(statement, "finalize");
+                            if (typeof finalize === "function") finalize.call(statement);
+                        } catch {
+                            // Intentional: closing the DB should be best-effort.
+                        } finally {
+                            statements.delete(statement);
+                        }
+                    }
+                    const close = Reflect.get(target, prop, receiver) as unknown;
+                    return typeof close === "function" ? close.apply(target, args) : undefined;
+                };
+            }
+            return bindMethods(target, prop, receiver);
+        },
+    });
+}
+
+const TrackedDatabaseImpl = new Proxy(DatabaseImpl, {
+    construct(target, args, newTarget) {
+        return trackDatabase(Reflect.construct(target, args, newTarget));
+    },
+});
+
 /**
  * Database constructor compatible with both bun:sqlite and better-sqlite3.
  *
@@ -73,7 +195,7 @@ const DatabaseImpl = isBun ? sqliteModule.Database : sqliteModule.default;
  */
 import type BetterSqlite3 from "better-sqlite3";
 
-export const Database: typeof BetterSqlite3 = DatabaseImpl;
+export const Database: typeof BetterSqlite3 = TrackedDatabaseImpl;
 
 /** Instance type alias used by helpers and storage modules. */
 export type Database = BetterSqlite3.Database;

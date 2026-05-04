@@ -563,6 +563,7 @@ export function closeDatabase(): void {
             databases.delete(key);
         }
     }
+    (globalThis as { Bun?: { gc?: (force?: boolean) => void } }).Bun?.gc?.(true);
 }
 
 export type ContextDatabase = ReturnType<typeof openDatabase>;

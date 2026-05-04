@@ -4,10 +4,10 @@ export const NpmPackageEnvelopeSchema = z.object({
     "dist-tags": z.record(z.string(), z.string()).optional().default({}),
 });
 
-export const OpencodePluginTupleSchema = z.tuple([z.string(), z.record(z.string(), z.unknown())]);
+export const KiloPluginTupleSchema = z.tuple([z.string(), z.record(z.string(), z.unknown())]);
 
-export const OpencodeConfigSchema = z.object({
-    plugin: z.array(z.union([z.string(), OpencodePluginTupleSchema])).optional(),
+export const KiloConfigSchema = z.object({
+    plugin: z.array(z.union([z.string(), KiloPluginTupleSchema])).optional(),
 });
 
 export const PackageJsonSchema = z
@@ -35,5 +35,5 @@ export interface PluginEntryInfo {
 }
 
 export type NpmPackageEnvelope = z.infer<typeof NpmPackageEnvelopeSchema>;
-export type OpencodeConfig = z.infer<typeof OpencodeConfigSchema>;
+export type KiloConfig = z.infer<typeof KiloConfigSchema>;
 export type PackageJson = z.infer<typeof PackageJsonSchema>;

@@ -5,6 +5,26 @@
 
 import type { Database } from "./sqlite";
 
+export function finalizeQuietly(statement: unknown): void {
+    try {
+        (statement as { finalize?: () => void } | null | undefined)?.finalize?.();
+    } catch {
+        // intentional: caller wants quiet finalize
+    }
+}
+
+function settleBunSqliteClose(): void {
+    const bun = (globalThis as { Bun?: { gc?: (force?: boolean) => void } }).Bun;
+    if (!bun?.gc) return;
+    bun.gc(true);
+    if (process.platform === "win32") {
+        // Bun releases some SQLite transaction handles on the next tick; on
+        // Windows an immediate recursive rm can otherwise see EBUSY.
+        Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 10);
+        bun.gc(true);
+    }
+}
+
 /**
  * Close a database, ignoring errors.
  *
@@ -16,11 +36,22 @@ import type { Database } from "./sqlite";
  */
 export function closeQuietly(db: Database | null | undefined): void {
     if (!db) return;
-    // Just attempt close and swallow errors. bun:sqlite has no `open` property,
-    // and better-sqlite3 throws TypeError on already-closed databases — both
-    // are handled by the bare try/catch.
+    // Just attempt close and swallow errors. bun:sqlite can leave handles open
+    // when statements are still live unless throwOnError=false is passed.
+    // better-sqlite3 throws TypeError on already-closed databases — both are
+    // handled by the bare try/catch.
     try {
-        db.close();
+        try {
+            db.exec("PRAGMA wal_checkpoint(TRUNCATE)");
+        } catch {
+            // Not every DB is writable or even open; close is still attempted.
+        }
+        if (typeof process.versions?.bun === "string") {
+            (db as unknown as { close: (throwOnError?: boolean) => void }).close(false);
+            settleBunSqliteClose();
+        } else {
+            db.close();
+        }
     } catch {
         // intentional: caller wants quiet close
     }

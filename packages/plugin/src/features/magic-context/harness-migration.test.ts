@@ -8,9 +8,8 @@ import { initializeDatabase } from "./storage-db";
 
 /**
  * Phase 2a regression: every session-scoped table must carry a `harness`
- * column so OpenCode and Pi can share `~/.local/share/cortexkit/magic-context/`
- * without conflating their session state. Pre-v0.16 rows must transparently
- * become harness='opencode'.
+ * column so Kilo-native data can track its origin and explicit legacy imports
+ * can preserve source labels without sharing runtime databases by default.
  *
  * This test creates a fresh in-memory DB and verifies that all session-scoped
  * tables expose a harness column with the expected default — covering both
@@ -47,14 +46,14 @@ describe("harness column", () => {
             const harness = cols.find((c) => c.name === "harness");
             expect(harness, `${table} should have harness column`).toBeDefined();
             // Stored DEFAULT in sqlite_master includes literal quotes.
-            expect(harness?.dflt_value).toBe("'opencode'");
+            expect(harness?.dflt_value).toBe("'kilo'");
             expect(harness?.notnull).toBe(1);
         }
 
         closeQuietly(db);
     });
 
-    it("legacy notes rows get harness='opencode' via migration v6", () => {
+    it("pre-harness notes rows get harness='kilo' via migration v7", () => {
         // Simulate a pre-v6 DB: create notes table without harness column,
         // insert a legacy row, then run init+migrations to verify backfill.
         const db = new Database(":memory:");
@@ -93,17 +92,17 @@ describe("harness column", () => {
             ).run(v, "pre-existing", now);
         }
 
-        // Now run init (idempotent) + migration v6.
+        // Now run init (idempotent) + migration v7.
         initializeDatabase(db);
         runMigrations(db);
 
-        // Legacy row should now report harness='opencode' even though it was
+        // Existing row should now report harness='kilo' even though it was
         // inserted before the column existed (SQLite physically backfills
         // NOT NULL DEFAULT on existing rows during ALTER TABLE).
         const row = db.prepare("SELECT harness FROM notes WHERE content = 'legacy note'").get() as
             | { harness: string }
             | undefined;
-        expect(row?.harness).toBe("opencode");
+        expect(row?.harness).toBe("kilo");
 
         closeQuietly(db);
     });

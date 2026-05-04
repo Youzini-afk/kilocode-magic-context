@@ -17,20 +17,20 @@ describe("models-dev-cache", () => {
     beforeEach(() => {
         tempDir = mkdtempSync(join(tmpdir(), "mc-models-dev-"));
         originalEnv = {
-            OPENCODE_MODELS_PATH: process.env.OPENCODE_MODELS_PATH,
-            OPENCODE_MODELS_URL: process.env.OPENCODE_MODELS_URL,
+            KILO_MODELS_PATH: process.env.KILO_MODELS_PATH,
+            KILO_MODELS_URL: process.env.KILO_MODELS_URL,
             XDG_CACHE_HOME: process.env.XDG_CACHE_HOME,
-            OPENCODE_CONFIG_DIR: process.env.OPENCODE_CONFIG_DIR,
+            KILO_CONFIG_DIR: process.env.KILO_CONFIG_DIR,
         };
-        // Isolate from user environment — including user's ~/.config/opencode/opencode.jsonc
+        // Isolate from user environment — including user's ~/.config/kilo/kilo.jsonc
         // which may have custom provider limits that would override models.json entries.
-        delete process.env.OPENCODE_MODELS_PATH;
-        delete process.env.OPENCODE_MODELS_URL;
+        delete process.env.KILO_MODELS_PATH;
+        delete process.env.KILO_MODELS_URL;
         process.env.XDG_CACHE_HOME = tempDir;
-        // Point at an empty directory so no opencode.json{c} is read unless the test writes one.
-        const emptyConfigDir = join(tempDir, "config", "opencode");
+        // Point at an empty directory so no kilo.json{c} is read unless the test writes one.
+        const emptyConfigDir = join(tempDir, "config", "kilo");
         mkdirSync(emptyConfigDir, { recursive: true });
-        process.env.OPENCODE_CONFIG_DIR = emptyConfigDir;
+        process.env.KILO_CONFIG_DIR = emptyConfigDir;
         clearModelsDevCache();
     });
 
@@ -45,7 +45,7 @@ describe("models-dev-cache", () => {
     });
 
     test("reads context limits from models.json under XDG_CACHE_HOME", () => {
-        const opencodeDir = join(tempDir, "opencode");
+        const opencodeDir = join(tempDir, "kilo");
         mkdirSync(opencodeDir, { recursive: true });
         writeFileSync(
             join(opencodeDir, "models.json"),
@@ -74,7 +74,7 @@ describe("models-dev-cache", () => {
         //   limit.context = 400000 (total), limit.input = 272000 (max prompt).
         // Our pressure math must use the input cap; sending a 400K prompt gets rejected.
         // OpenCode's own session/overflow.ts follows the same rule.
-        const opencodeDir = join(tempDir, "opencode");
+        const opencodeDir = join(tempDir, "kilo");
         mkdirSync(opencodeDir, { recursive: true });
         writeFileSync(
             join(opencodeDir, "models.json"),
@@ -98,7 +98,7 @@ describe("models-dev-cache", () => {
 
     test("derived experimental.modes inherit the effective (input) limit", () => {
         //#given — parent has input < context; derived modes should inherit input, not context
-        const opencodeDir = join(tempDir, "opencode");
+        const opencodeDir = join(tempDir, "kilo");
         mkdirSync(opencodeDir, { recursive: true });
         writeFileSync(
             join(opencodeDir, "models.json"),
@@ -120,14 +120,14 @@ describe("models-dev-cache", () => {
         expect(getModelsDevContextLimit("openai", "gpt-5.4-mini")).toBe(922000);
     });
 
-    test("custom opencode.json provider overlay uses limit.input preferentially", () => {
-        //#given — user defines a proxy provider in opencode.json with input < context
-        const opencodeDir = join(tempDir, "opencode");
+    test("custom kilo.json provider overlay uses limit.input preferentially", () => {
+        //#given — user defines a proxy provider in kilo.json with input < context
+        const opencodeDir = join(tempDir, "kilo");
         mkdirSync(opencodeDir, { recursive: true });
-        const configDir = join(tempDir, "config", "opencode");
+        const configDir = join(tempDir, "config", "kilo");
         mkdirSync(configDir, { recursive: true });
         writeFileSync(
-            join(configDir, "opencode.json"),
+            join(configDir, "kilo.json"),
             JSON.stringify({
                 provider: {
                     "my-proxy": {
@@ -138,14 +138,14 @@ describe("models-dev-cache", () => {
                 },
             }),
         );
-        process.env.OPENCODE_CONFIG_DIR = configDir;
+        process.env.KILO_CONFIG_DIR = configDir;
         clearModelsDevCache();
 
         //#then
         expect(getModelsDevContextLimit("my-proxy", "split-model")).toBe(200000);
 
         // Cleanup: restore env (afterEach also handles this, but we added a new var)
-        delete process.env.OPENCODE_CONFIG_DIR;
+        delete process.env.KILO_CONFIG_DIR;
     });
 
     test("API cache uses limit.input preferentially", async () => {
@@ -175,7 +175,7 @@ describe("models-dev-cache", () => {
     });
 
     test("expands experimental.modes into derived model IDs with parent context", () => {
-        const opencodeDir = join(tempDir, "opencode");
+        const opencodeDir = join(tempDir, "kilo");
         mkdirSync(opencodeDir, { recursive: true });
         writeFileSync(
             join(opencodeDir, "models.json"),
@@ -198,7 +198,7 @@ describe("models-dev-cache", () => {
         expect(getModelsDevContextLimit("github-copilot", "gpt-5.4-high")).toBe(400000);
     });
 
-    test("OPENCODE_MODELS_PATH env overrides default path", () => {
+    test("KILO_MODELS_PATH env overrides default path", () => {
         // Write real file somewhere unexpected.
         const customPath = join(tempDir, "elsewhere", "my-models.json");
         mkdirSync(join(tempDir, "elsewhere"), { recursive: true });
@@ -208,17 +208,17 @@ describe("models-dev-cache", () => {
                 anthropic: { models: { "claude-4": { limit: { context: 1000000 } } } },
             }),
         );
-        process.env.OPENCODE_MODELS_PATH = customPath;
+        process.env.KILO_MODELS_PATH = customPath;
         clearModelsDevCache();
 
         expect(getModelsDevContextLimit("anthropic", "claude-4")).toBe(1000000);
     });
 
-    test("OPENCODE_MODELS_URL (non-default) selects hashed filename", () => {
+    test("KILO_MODELS_URL (non-default) selects hashed filename", () => {
         // We can't easily verify the exact hash without duplicating the hash logic,
-        // but we can confirm that setting OPENCODE_MODELS_URL prevents reading
+        // but we can confirm that setting KILO_MODELS_URL prevents reading
         // the default models.json when that file exists with different data.
-        const opencodeDir = join(tempDir, "opencode");
+        const opencodeDir = join(tempDir, "kilo");
         mkdirSync(opencodeDir, { recursive: true });
         writeFileSync(
             join(opencodeDir, "models.json"),
@@ -227,7 +227,7 @@ describe("models-dev-cache", () => {
             }),
         );
 
-        process.env.OPENCODE_MODELS_URL = "https://custom.example.com/models";
+        process.env.KILO_MODELS_URL = "https://custom.example.com/models";
         clearModelsDevCache();
 
         // Should NOT find claude-4 because we're looking at a hashed filename now,
@@ -237,7 +237,7 @@ describe("models-dev-cache", () => {
 
     test("API cache takes priority over file cache", async () => {
         // Seed file layer with one value.
-        const opencodeDir = join(tempDir, "opencode");
+        const opencodeDir = join(tempDir, "kilo");
         mkdirSync(opencodeDir, { recursive: true });
         writeFileSync(
             join(opencodeDir, "models.json"),
@@ -277,7 +277,7 @@ describe("models-dev-cache", () => {
     });
 
     test("reads interleaved reasoning field metadata from models.json", () => {
-        const opencodeDir = join(tempDir, "opencode");
+        const opencodeDir = join(tempDir, "kilo");
         mkdirSync(opencodeDir, { recursive: true });
         writeFileSync(
             join(opencodeDir, "models.json"),
@@ -357,7 +357,7 @@ describe("models-dev-cache", () => {
     });
 
     test("falls back to file layer when API provider/model key is missing", async () => {
-        const opencodeDir = join(tempDir, "opencode");
+        const opencodeDir = join(tempDir, "kilo");
         mkdirSync(opencodeDir, { recursive: true });
         writeFileSync(
             join(opencodeDir, "models.json"),

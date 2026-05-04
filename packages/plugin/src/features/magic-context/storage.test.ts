@@ -64,8 +64,14 @@ function useTempDataHome(prefix: string): string {
 }
 
 function resolveDbPath(dataHome: string): string {
-    // Plugin v0.16+ — shared cortexkit/magic-context path. See data-path.ts.
-    return join(dataHome, "cortexkit", "magic-context", "context.db");
+    return join(
+        dataHome,
+        "kilo",
+        "storage",
+        "plugin",
+        "kilocode-magic-context",
+        "context.db",
+    );
 }
 
 function makeMemoryDatabase(): Database {
@@ -337,10 +343,10 @@ describe("magic-context storage", () => {
         //#given
         const dataHome = useTempDataHome("context-storage-fail-closed-");
         // Force mkdirSync to fail by creating a file at one of the expected
-        // parent directories (cortexkit). The new shared path is
-        // <dataHome>/cortexkit/magic-context/, so blocking the cortexkit
-        // segment forces openDatabase() into its fail-closed branch.
-        writeFileSync(join(dataHome, "cortexkit"), "not-a-directory", "utf-8");
+        // parent directories. The Kilo-native path is
+        // <dataHome>/kilo/storage/plugin/kilocode-magic-context/, so blocking
+        // the kilo segment forces openDatabase() into its fail-closed branch.
+        writeFileSync(join(dataHome, "kilo"), "not-a-directory", "utf-8");
         //#when/#then
         // openDatabase MUST throw — no silent in-memory fallback. See storage-db.ts.
         expect(() => openDatabase()).toThrow(/storage unavailable/i);

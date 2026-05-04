@@ -13,11 +13,13 @@ import {
     readSessionChunk,
     withRawSessionMessageCache,
 } from "./read-session-chunk";
+import { closeReadOnlySessionDb } from "./read-session-db";
 
 const tempDirs: string[] = [];
 const originalXdgDataHome = process.env.XDG_DATA_HOME;
 
 afterEach(() => {
+    closeReadOnlySessionDb();
     process.env.XDG_DATA_HOME = originalXdgDataHome;
     for (const dir of tempDirs) {
         rmSync(dir, { recursive: true, force: true });
@@ -32,7 +34,7 @@ function useTempDataHome(prefix: string): void {
 }
 
 function createOpenCodeDb(sessionId: string): void {
-    const dbPath = join(process.env.XDG_DATA_HOME!, "opencode", "opencode.db");
+    const dbPath = join(process.env.XDG_DATA_HOME!, "kilo", "kilo.db");
     mkdirSync(dirname(dbPath), { recursive: true });
     const db = new Database(dbPath);
     try {
@@ -93,7 +95,7 @@ function createOpenCodeDbWithMessages(
     sessionId: string,
     messages: Array<{ id: string; role: string; part: Record<string, unknown> }>,
 ): void {
-    const dbPath = join(process.env.XDG_DATA_HOME!, "opencode", "opencode.db");
+    const dbPath = join(process.env.XDG_DATA_HOME!, "kilo", "kilo.db");
     mkdirSync(dirname(dbPath), { recursive: true });
     const db = new Database(dbPath);
     try {
@@ -149,7 +151,7 @@ function appendOpenCodeMessage(
     message: { id: string; role: string; part: Record<string, unknown> },
     timestamp: number,
 ): void {
-    const dbPath = join(process.env.XDG_DATA_HOME!, "opencode", "opencode.db");
+    const dbPath = join(process.env.XDG_DATA_HOME!, "kilo", "kilo.db");
     const db = new Database(dbPath);
     try {
         db.prepare(
@@ -170,7 +172,7 @@ function appendOpenCodeMessage(
 }
 
 describe("readSessionChunk", () => {
-    it("reads raw OpenCode messages with stable ordinals and ids", () => {
+    it("reads raw Kilo messages with stable ordinals and ids", () => {
         useTempDataHome("read-session-chunk-");
         createOpenCodeDb("ses-raw");
 

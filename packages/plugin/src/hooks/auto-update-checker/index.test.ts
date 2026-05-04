@@ -10,8 +10,8 @@ const checkerMocks = {
 };
 
 const cacheMocks = {
-    preparePackageUpdate: mock(() => "/tmp/opencode"),
-    resolveInstallContext: mock(() => ({ installDir: "/tmp/opencode" })),
+    preparePackageUpdate: mock(() => "/tmp/kilo"),
+    resolveInstallContext: mock(() => ({ installDir: "/tmp/kilo" })),
     runBunInstallSafe: mock(async () => true),
 };
 
@@ -60,10 +60,10 @@ describe("auto-update-checker/index", () => {
         checkerMocks.getLocalDevVersion.mockImplementation(() => null);
 
         cacheMocks.preparePackageUpdate.mockReset();
-        cacheMocks.preparePackageUpdate.mockImplementation(() => "/tmp/opencode");
+        cacheMocks.preparePackageUpdate.mockImplementation(() => "/tmp/kilo");
         cacheMocks.resolveInstallContext.mockReset();
         cacheMocks.resolveInstallContext.mockImplementation(() => ({
-            installDir: "/tmp/opencode",
+            installDir: "/tmp/kilo",
         }));
         cacheMocks.runBunInstallSafe.mockReset();
         cacheMocks.runBunInstallSafe.mockImplementation(async () => true);
@@ -76,7 +76,7 @@ describe("auto-update-checker/index", () => {
     test("uses resolved install root for auto-update installs", async () => {
         const { getAutoUpdateInstallDir } = await freshIndexImport();
 
-        expect(getAutoUpdateInstallDir()).toBe("/tmp/opencode");
+        expect(getAutoUpdateInstallDir()).toBe("/tmp/kilo");
     });
 
     test("shows development toast and skips background update for local dev installs", async () => {
@@ -124,10 +124,10 @@ describe("auto-update-checker/index", () => {
 
     test("shows success toast after updating the active install root", async () => {
         checkerMocks.findPluginEntry.mockImplementation(() => ({
-            entry: "@cortexkit/opencode-magic-context@latest",
+            entry: "kilocode-magic-context@latest",
             pinnedVersion: null,
             isPinned: false,
-            configPath: "/config/opencode.jsonc",
+            configPath: "/config/kilo.jsonc",
         }));
         checkerMocks.getCachedVersion.mockImplementation(() => "0.15.5");
         checkerMocks.getLatestVersion.mockImplementation(async () => "0.15.6");
@@ -146,16 +146,16 @@ describe("auto-update-checker/index", () => {
 
         expect(cacheMocks.preparePackageUpdate).toHaveBeenCalledWith(
             "0.15.6",
-            "@cortexkit/opencode-magic-context",
+            "kilocode-magic-context",
         );
         expect(cacheMocks.runBunInstallSafe).toHaveBeenCalledWith(
-            "/tmp/opencode",
+            "/tmp/kilo",
             expect.objectContaining({ signal: expect.any(AbortSignal) }),
         );
         expect(showToast).toHaveBeenCalledWith({
             body: {
                 title: "Magic Context Updated!",
-                message: "v0.15.5 → v0.15.6\nRestart OpenCode to apply.",
+                message: "v0.15.5 → v0.15.6\nRestart Kilo to apply.",
                 variant: "success",
                 duration: 8000,
             },
@@ -164,10 +164,10 @@ describe("auto-update-checker/index", () => {
 
     test("shows notification-only toast when auto-update is disabled", async () => {
         checkerMocks.findPluginEntry.mockImplementation(() => ({
-            entry: "@cortexkit/opencode-magic-context@latest",
+            entry: "kilocode-magic-context@latest",
             pinnedVersion: null,
             isPinned: false,
-            configPath: "/config/opencode.jsonc",
+            configPath: "/config/kilo.jsonc",
         }));
         checkerMocks.getCachedVersion.mockImplementation(() => "0.15.5");
         checkerMocks.getLatestVersion.mockImplementation(async () => "0.15.6");
@@ -198,10 +198,10 @@ describe("auto-update-checker/index", () => {
 
     test("shows pinned-version notification without installing", async () => {
         checkerMocks.findPluginEntry.mockImplementation(() => ({
-            entry: "@cortexkit/opencode-magic-context@0.15.5",
+            entry: "kilocode-magic-context@0.15.5",
             pinnedVersion: "0.15.5",
             isPinned: true,
-            configPath: "/config/opencode.jsonc",
+            configPath: "/config/kilo.jsonc",
         }));
         checkerMocks.getCachedVersion.mockImplementation(() => "0.15.5");
         checkerMocks.getLatestVersion.mockImplementation(async () => "0.15.6");
@@ -221,7 +221,7 @@ describe("auto-update-checker/index", () => {
             body: {
                 title: "Magic Context 0.15.6",
                 message:
-                    "v0.15.6 available. Version is pinned; update your OpenCode plugin config to upgrade.",
+                    "v0.15.6 available. Version is pinned; update your Kilo plugin config to upgrade.",
                 variant: "info",
                 duration: 8000,
             },
@@ -231,10 +231,10 @@ describe("auto-update-checker/index", () => {
 
     test("shows warning toast when latest version fetch fails", async () => {
         checkerMocks.findPluginEntry.mockImplementation(() => ({
-            entry: "@cortexkit/opencode-magic-context@latest",
+            entry: "kilocode-magic-context@latest",
             pinnedVersion: null,
             isPinned: false,
-            configPath: "/config/opencode.jsonc",
+            configPath: "/config/kilo.jsonc",
         }));
         checkerMocks.getCachedVersion.mockImplementation(() => "0.15.5");
         checkerMocks.getLatestVersion.mockImplementation(async () => null);
@@ -254,7 +254,7 @@ describe("auto-update-checker/index", () => {
             body: {
                 title: "Magic Context update check failed",
                 message:
-                    "Could not check npm for @cortexkit/opencode-magic-context updates. Continuing with the cached version.",
+                    "Could not check npm for kilocode-magic-context updates. Continuing with the cached version.",
                 variant: "warning",
                 duration: 8000,
             },
@@ -263,10 +263,10 @@ describe("auto-update-checker/index", () => {
 
     test("shows install failure toast without telling users to restart", async () => {
         checkerMocks.findPluginEntry.mockImplementation(() => ({
-            entry: "@cortexkit/opencode-magic-context@latest",
+            entry: "kilocode-magic-context@latest",
             pinnedVersion: null,
             isPinned: false,
-            configPath: "/config/opencode.jsonc",
+            configPath: "/config/kilo.jsonc",
         }));
         checkerMocks.getCachedVersion.mockImplementation(() => "0.15.5");
         checkerMocks.getLatestVersion.mockImplementation(async () => "0.15.6");

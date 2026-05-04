@@ -46,6 +46,7 @@ interface LoadedConfigFile {
     config: Record<string, unknown>;
     /** Warnings from {env:} / {file:} substitution, with config-path prefix applied. */
     warnings: string[];
+    path: string;
 }
 
 function loadConfigFile(configPath: string): LoadedConfigFile | null {
@@ -62,6 +63,7 @@ function loadConfigFile(configPath: string): LoadedConfigFile | null {
         return {
             config: parseJsonc<Record<string, unknown>>(substituted.text),
             warnings: substituted.warnings.map((w) => `${configPath}: ${w}`),
+            path: configPath,
         };
     } catch (error) {
         console.warn(
@@ -389,4 +391,24 @@ export function loadPluginConfig(
     }
 
     return config;
+}
+
+export function getPluginConfigStatus(directory: string): {
+    userConfig?: string;
+    projectConfig?: string;
+} {
+    const userDetected = (() => {
+        const preferred = detectConfigFile(getUserConfigBasePath());
+        if (preferred.format !== "none") return preferred;
+        return detectConfigFile(getUserLegacyConfigBasePath());
+    })();
+    const projectDetected =
+        getProjectConfigBasePaths(directory)
+            .map((basePath) => detectConfigFile(basePath))
+            .find((detected) => detected.format !== "none") ?? detectConfigFile(join(directory, CONFIG_FILE_BASENAME));
+
+    return {
+        ...(userDetected.format !== "none" ? { userConfig: userDetected.path } : {}),
+        ...(projectDetected.format !== "none" ? { projectConfig: projectDetected.path } : {}),
+    };
 }

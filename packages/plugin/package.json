@@ -25,6 +25,7 @@
 	},
 	"files": [
 		"dist",
+		"settings",
 		"src/tui",
 		"src/shared",
 		"README.md"
@@ -75,6 +76,24 @@
 		"server",
 		"tui"
 	],
+	"kilo-plugin": {
+		"id": "kilocode-magic-context",
+		"displayName": "Magic Context",
+		"description": "Cross-session memory and context management for Kilo",
+		"kinds": [
+			"server",
+			"tui"
+		],
+		"config": {
+			"file": "kilo-magic-context.jsonc",
+			"schema": "assets/kilo-magic-context.schema.json"
+		},
+		"settings": {
+			"title": "Magic Context",
+			"icon": "brain",
+			"entry": "settings/index.html"
+		}
+	},
 	"peerDependencies": {
 		"@kilocode/plugin": ">=7.2.34"
 	}

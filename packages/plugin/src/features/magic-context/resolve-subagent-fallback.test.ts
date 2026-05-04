@@ -10,7 +10,7 @@ import { resolveIsSubagentFromOpenCodeDb } from "./resolve-subagent-fallback";
 
 /**
  * Regression tests for the subagent-detection fallback that bridges the race
- * between OpenCode creating a session and the async `session.created` event
+ * between Kilo creating a session and the async `session.created` event
  * reaching our handler.
  */
 describe("resolveIsSubagentFromOpenCodeDb", () => {
@@ -23,10 +23,10 @@ describe("resolveIsSubagentFromOpenCodeDb", () => {
         originalXdg = process.env.XDG_DATA_HOME;
         process.env.XDG_DATA_HOME = tempDir;
 
-        // Build the OpenCode DB at the path the helper resolves to.
-        const dbDir = join(tempDir, "opencode");
+        // Build the Kilo DB at the path the helper resolves to.
+        const dbDir = join(tempDir, "kilo");
         mkdirSync(dbDir, { recursive: true });
-        openCodeDb = new Database(join(dbDir, "opencode.db"));
+        openCodeDb = new Database(join(dbDir, "kilo.db"));
         openCodeDb.exec(`
             CREATE TABLE session (
                 id TEXT PRIMARY KEY,

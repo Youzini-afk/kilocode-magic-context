@@ -2,7 +2,7 @@ import type { Plugin, PluginModule } from "@kilocode/plugin";
 import { DREAMER_AGENT } from "./agents/dreamer";
 import { HISTORIAN_AGENT, HISTORIAN_EDITOR_AGENT } from "./agents/historian";
 import { SIDEKICK_AGENT } from "./agents/sidekick";
-import { loadPluginConfig } from "./config";
+import { getPluginConfigStatus, loadPluginConfig } from "./config";
 import { getMagicContextBuiltinCommands } from "./features/builtin-commands/commands";
 import { DREAMER_SYSTEM_PROMPT } from "./features/magic-context/dreamer/task-prompts";
 import { SIDEKICK_SYSTEM_PROMPT } from "./features/magic-context/sidekick/agent";
@@ -28,6 +28,8 @@ import { log } from "./shared/logger";
 import { getAgentFallbackModels } from "./shared/model-requirements";
 import { refreshModelLimitsFromApi } from "./shared/models-dev-cache";
 import { MagicContextRpcServer } from "./shared/rpc-server";
+
+type SettingsRpcInput = { method: string; params?: unknown };
 
 const server: Plugin = async (ctx) => {
     setKiloRuntimeInfo(ctx);
@@ -282,6 +284,54 @@ const server: Plugin = async (ctx) => {
         },
         "experimental.text.complete": async (input, output) => {
             await hooks.magicContext?.["experimental.text.complete"]?.(input, output);
+        },
+        settings: {
+            rpc: async (input: SettingsRpcInput) => {
+                if (input.method === "status") {
+                    const configStatus = getPluginConfigStatus(ctx.directory);
+                    return {
+                        id: "kilocode-magic-context",
+                        enabled: pluginConfig.enabled,
+                        storageDir: getMagicContextStorageDir(),
+                        configFile: configStatus.projectConfig ?? configStatus.userConfig,
+                        config: {
+                            ctx_reduce_enabled: pluginConfig.ctx_reduce_enabled,
+                            execute_threshold_percentage: pluginConfig.execute_threshold_percentage,
+                            execute_threshold_tokens: pluginConfig.execute_threshold_tokens,
+                            history_budget_percentage: pluginConfig.history_budget_percentage,
+                            memory: pluginConfig.memory,
+                            dreamer: pluginConfig.dreamer
+                                ? { ...pluginConfig.dreamer, system_prompt: undefined }
+                                : undefined,
+                            sidekick: pluginConfig.sidekick
+                                ? { ...pluginConfig.sidekick, system_prompt: undefined }
+                                : undefined,
+                        },
+                        warnings: pluginConfig.configWarnings ?? [],
+                    };
+                }
+                if (input.method === "doctor") {
+                    const configStatus = getPluginConfigStatus(ctx.directory);
+                    return {
+                        ok: true,
+                        enabled: pluginConfig.enabled,
+                        storageDir: getMagicContextStorageDir(),
+                        configFiles: configStatus,
+                        warnings: pluginConfig.configWarnings ?? [],
+                        checks: [
+                            {
+                                name: "config",
+                                status: pluginConfig.configWarnings?.length ? "warn" : "pass",
+                            },
+                            {
+                                name: "storage",
+                                status: "pass",
+                            },
+                        ],
+                    };
+                }
+                throw new Error(`Unknown Magic Context settings RPC method: ${input.method}`);
+            },
         },
         config: async (config) => {
             const buildHiddenAgentConfig = (

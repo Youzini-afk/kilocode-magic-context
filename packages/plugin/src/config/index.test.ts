@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { loadPluginConfig } from "./index";
 
 /**
- * Writes a magic-context.jsonc file inside a fresh temp XDG_CONFIG_HOME tree
+ * Writes a magic-context.jsonc file inside a fresh temp Kilo config tree
  * and runs loadPluginConfig against it. Returns warnings + parsed config.
  *
  * Scope directory is NOT set — we pass a unique directory that does not
@@ -14,18 +14,20 @@ import { loadPluginConfig } from "./index";
  */
 function loadWithUserConfig(configText: string, extraEnv: Record<string, string> = {}) {
     const xdg = mkdtempSync(join(tmpdir(), "mc-config-test-"));
-    const configDir = join(xdg, "opencode");
+    const configDir = join(xdg, "kilo");
     const fs = require("node:fs") as typeof import("node:fs");
     fs.mkdirSync(configDir, { recursive: true });
     writeFileSync(join(configDir, "magic-context.jsonc"), configText, "utf-8");
 
     const origXdg = process.env.XDG_CONFIG_HOME;
+    const origKiloConfigDir = process.env.KILO_CONFIG_DIR;
     const savedEnv: Record<string, string | undefined> = {};
     for (const [k, v] of Object.entries(extraEnv)) {
         savedEnv[k] = process.env[k];
         process.env[k] = v;
     }
     process.env.XDG_CONFIG_HOME = xdg;
+    delete process.env.KILO_CONFIG_DIR;
 
     // Use a directory that definitely has no project config so only the
     // user config feeds the loader. We use a sibling temp directory.
@@ -37,6 +39,11 @@ function loadWithUserConfig(configText: string, extraEnv: Record<string, string>
             delete process.env.XDG_CONFIG_HOME;
         } else {
             process.env.XDG_CONFIG_HOME = origXdg;
+        }
+        if (origKiloConfigDir === undefined) {
+            delete process.env.KILO_CONFIG_DIR;
+        } else {
+            process.env.KILO_CONFIG_DIR = origKiloConfigDir;
         }
         for (const [k, v] of Object.entries(savedEnv)) {
             if (v === undefined) delete process.env[k];
@@ -51,14 +58,16 @@ function loadWithUserAndProjectConfig(userConfigText: string, projectConfigText:
     const xdg = mkdtempSync(join(tmpdir(), "mc-config-test-"));
     const projectDir = mkdtempSync(join(tmpdir(), "mc-config-proj-"));
     const fs = require("node:fs") as typeof import("node:fs");
-    const configDir = join(xdg, "opencode");
+    const configDir = join(xdg, "kilo");
     fs.mkdirSync(configDir, { recursive: true });
-    fs.mkdirSync(join(projectDir, ".opencode"), { recursive: true });
+    fs.mkdirSync(join(projectDir, ".kilo"), { recursive: true });
     writeFileSync(join(configDir, "magic-context.jsonc"), userConfigText, "utf-8");
-    writeFileSync(join(projectDir, ".opencode", "magic-context.jsonc"), projectConfigText, "utf-8");
+    writeFileSync(join(projectDir, ".kilo", "magic-context.jsonc"), projectConfigText, "utf-8");
 
     const origXdg = process.env.XDG_CONFIG_HOME;
+    const origKiloConfigDir = process.env.KILO_CONFIG_DIR;
     process.env.XDG_CONFIG_HOME = xdg;
+    delete process.env.KILO_CONFIG_DIR;
 
     try {
         return loadPluginConfig(projectDir);
@@ -67,6 +76,11 @@ function loadWithUserAndProjectConfig(userConfigText: string, projectConfigText:
             delete process.env.XDG_CONFIG_HOME;
         } else {
             process.env.XDG_CONFIG_HOME = origXdg;
+        }
+        if (origKiloConfigDir === undefined) {
+            delete process.env.KILO_CONFIG_DIR;
+        } else {
+            process.env.KILO_CONFIG_DIR = origKiloConfigDir;
         }
         rmSync(xdg, { recursive: true, force: true });
         rmSync(projectDir, { recursive: true, force: true });

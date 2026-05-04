@@ -17,6 +17,7 @@ import {
 } from "../../features/magic-context/storage";
 import type { Tagger } from "../../features/magic-context/tagger";
 import { createMagicContextHook, type MagicContextDeps } from "./hook";
+import { closeReadOnlySessionDb } from "./read-session-db";
 
 type PromptMocks = {
     prompt?: ReturnType<typeof mock>;
@@ -29,17 +30,24 @@ type PromptMocks = {
 
 const tempDirs: string[] = [];
 const originalXdgDataHome = process.env.XDG_DATA_HOME;
+const originalKiloDb = process.env.KILO_DB;
 
 function makeTempDir(prefix: string): string {
     const dir = mkdtempSync(join(tmpdir(), prefix));
     tempDirs.push(dir);
+    delete process.env.KILO_DB;
     return dir;
 }
 
-afterEach(() => {
+afterEach(async () => {
+    closeReadOnlySessionDb();
     closeDatabase();
-    process.env.XDG_DATA_HOME = originalXdgDataHome;
+    if (originalXdgDataHome === undefined) delete process.env.XDG_DATA_HOME;
+    else process.env.XDG_DATA_HOME = originalXdgDataHome;
+    if (originalKiloDb === undefined) delete process.env.KILO_DB;
+    else process.env.KILO_DB = originalKiloDb;
 
+    await new Promise((resolve) => setTimeout(resolve, 10));
     for (const dir of tempDirs) {
         rmSync(dir, { recursive: true, force: true });
     }
@@ -166,10 +174,8 @@ describe("magic-context hook", () => {
     it("disables magic-context and warns when persistent storage is unavailable", () => {
         const dataHome = makeTempDir("hook-storage-disabled-");
         process.env.XDG_DATA_HOME = dataHome;
-        // Block mkdirSync at the cortexkit segment of the new shared path so
-        // openDatabase() falls into its in-memory fallback. (Plugin v0.16+
-        // moved DB to <XDG_DATA_HOME>/cortexkit/magic-context/.)
-        writeFileSync(join(dataHome, "cortexkit"), "not-a-directory", "utf-8");
+        // Block mkdirSync at the Kilo data root so openDatabase() fails closed.
+        writeFileSync(join(dataHome, "kilo"), "not-a-directory", "utf-8");
 
         const promptMocks = createPromptMocks();
         const hook = createMagicContextHook(createMockDeps(promptMocks));

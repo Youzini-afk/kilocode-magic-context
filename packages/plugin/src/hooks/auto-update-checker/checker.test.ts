@@ -1,11 +1,14 @@
 import { afterEach, describe, expect, mock, spyOn, test } from "bun:test";
 import * as fs from "node:fs";
-import { homedir } from "node:os";
 
 let importCounter = 0;
 
 function freshCheckerImport() {
     return import(`./checker.ts?test=${importCounter++}`);
+}
+
+function slash(value: unknown): string {
+    return String(value).replace(/\\/g, "/");
 }
 
 afterEach(() => {
@@ -37,22 +40,23 @@ describe("auto-update-checker/checker", () => {
     describe("findPluginEntry", () => {
         test("detects bare and @latest entries as unpinned", async () => {
             const existsSpy = spyOn(fs, "existsSync").mockImplementation((p: fs.PathLike) =>
-                String(p).includes("opencode.json"),
+                String(p).includes("kilo.json"),
             );
             const readSpy = spyOn(fs, "readFileSync").mockReturnValue(
-                JSON.stringify({ plugin: ["@cortexkit/opencode-magic-context"] }),
+                JSON.stringify({ plugin: ["kilocode-magic-context"] }),
             );
             const { findPluginEntry } = await freshCheckerImport();
 
-            expect(findPluginEntry("/test")).toEqual({
-                entry: "@cortexkit/opencode-magic-context",
+            const bare = findPluginEntry("/test");
+            expect(bare).toMatchObject({
+                entry: "kilocode-magic-context",
                 isPinned: false,
                 pinnedVersion: null,
-                configPath: "/test/.opencode/opencode.json",
             });
+            expect(slash(bare?.configPath)).toBe("/test/.kilo/kilo.json");
 
             readSpy.mockReturnValue(
-                JSON.stringify({ plugin: ["@cortexkit/opencode-magic-context@latest"] }),
+                JSON.stringify({ plugin: ["kilocode-magic-context@latest"] }),
             );
             expect(findPluginEntry("/test")?.isPinned).toBe(false);
 
@@ -62,20 +66,20 @@ describe("auto-update-checker/checker", () => {
 
         test("detects pinned tuple entries and ignores other scoped packages", async () => {
             const existsSpy = spyOn(fs, "existsSync").mockImplementation((p: fs.PathLike) =>
-                String(p).includes("opencode.json"),
+                String(p).includes("kilo.json"),
             );
             const readSpy = spyOn(fs, "readFileSync").mockReturnValue(
                 JSON.stringify({
                     plugin: [
                         "@cortexkit/other@1.0.0",
-                        ["@cortexkit/opencode-magic-context@0.15.6", {}],
+                        ["kilocode-magic-context@0.15.6", {}],
                     ],
                 }),
             );
             const { findPluginEntry } = await freshCheckerImport();
 
             const entry = findPluginEntry("/test");
-            expect(entry?.entry).toBe("@cortexkit/opencode-magic-context@0.15.6");
+            expect(entry?.entry).toBe("kilocode-magic-context@0.15.6");
             expect(entry?.isPinned).toBe(true);
             expect(entry?.pinnedVersion).toBe("0.15.6");
 
@@ -96,9 +100,9 @@ describe("auto-update-checker/checker", () => {
 
         test("returns version from a configured file:// local package", async () => {
             const existsSpy = spyOn(fs, "existsSync").mockImplementation((p: fs.PathLike) => {
-                const value = String(p);
+                const value = slash(p);
                 return (
-                    value.includes("opencode.json") || value === "/dev/magic-context/package.json"
+                    value.includes("kilo.json") || value === "/dev/magic-context/package.json"
                 );
             });
             const statSpy = spyOn(fs, "statSync").mockImplementation(
@@ -106,13 +110,13 @@ describe("auto-update-checker/checker", () => {
             );
             const readSpy = spyOn(fs, "readFileSync").mockImplementation(
                 (p: fs.PathOrFileDescriptor) => {
-                    const value = String(p);
-                    if (value.includes("opencode.json")) {
+                    const value = slash(p);
+                    if (value.includes("kilo.json")) {
                         return JSON.stringify({ plugin: ["file:///dev/magic-context"] });
                     }
                     if (value === "/dev/magic-context/package.json") {
                         return JSON.stringify({
-                            name: "@cortexkit/opencode-magic-context",
+                            name: "kilocode-magic-context",
                             version: "1.2.3-dev",
                         });
                     }
@@ -130,17 +134,18 @@ describe("auto-update-checker/checker", () => {
     });
 
     describe("getCachedVersion and updatePinnedVersion", () => {
-        test("reads cached version from OpenCode's scoped package cache layout", async () => {
-            const packagePath = `${homedir()}/.cache/opencode/packages/@cortexkit/opencode-magic-context@latest/node_modules/@cortexkit/opencode-magic-context/package.json`;
+        test("reads cached version from Kilo's package cache layout", async () => {
+            const packagePathSuffix =
+                "/kilo/packages/kilocode-magic-context@latest/node_modules/kilocode-magic-context/package.json";
             const existsSpy = spyOn(fs, "existsSync").mockImplementation(
-                (p: fs.PathLike) => String(p) === packagePath,
+                (p: fs.PathLike) => slash(p).endsWith(packagePathSuffix),
             );
             const readSpy = spyOn(fs, "readFileSync").mockReturnValue(
-                JSON.stringify({ name: "@cortexkit/opencode-magic-context", version: "0.15.6" }),
+                JSON.stringify({ name: "kilocode-magic-context", version: "0.15.6" }),
             );
             const { getCachedVersion } = await freshCheckerImport();
 
-            expect(getCachedVersion("@cortexkit/opencode-magic-context@latest")).toBe("0.15.6");
+            expect(getCachedVersion("kilocode-magic-context@latest")).toBe("0.15.6");
 
             existsSpy.mockRestore();
             readSpy.mockRestore();
@@ -149,7 +154,7 @@ describe("auto-update-checker/checker", () => {
         test("updates exact quoted pinned entry while preserving surrounding JSONC", async () => {
             const existsSpy = spyOn(fs, "existsSync").mockReturnValue(true);
             const readSpy = spyOn(fs, "readFileSync").mockReturnValue(
-                '{\n  // plugins\n  "plugin": ["@cortexkit/opencode-magic-context@0.15.5"]\n}',
+                '{\n  // plugins\n  "plugin": ["kilocode-magic-context@0.15.5"]\n}',
             );
             const writes: string[] = [];
             const writeSpy = spyOn(fs, "writeFileSync").mockImplementation(
@@ -161,12 +166,12 @@ describe("auto-update-checker/checker", () => {
 
             expect(
                 updatePinnedVersion(
-                    "/config/opencode.jsonc",
-                    "@cortexkit/opencode-magic-context@0.15.5",
+                    "/config/kilo.jsonc",
+                    "kilocode-magic-context@0.15.5",
                     "0.15.6",
                 ),
             ).toBe(true);
-            expect(writes[0]).toContain('"@cortexkit/opencode-magic-context@0.15.6"');
+            expect(writes[0]).toContain('"kilocode-magic-context@0.15.6"');
             expect(writes[0]).toContain("// plugins");
 
             existsSpy.mockRestore();
@@ -188,7 +193,7 @@ describe("auto-update-checker/checker", () => {
                 await getLatestVersion("beta", { registryUrl: "https://registry.example.test" }),
             ).toBe("0.16.0-beta.1");
             expect(fetchMock).toHaveBeenCalledWith(
-                "https://registry.example.test/%40cortexkit/opencode-magic-context",
+                "https://registry.example.test/kilocode-magic-context",
                 expect.objectContaining({ headers: { Accept: "application/json" } }),
             );
 

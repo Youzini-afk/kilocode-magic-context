@@ -14,11 +14,13 @@ import type { SessionMeta } from "../../features/magic-context/types";
 import { Database } from "../../shared/sqlite";
 import { closeQuietly } from "../../shared/sqlite-helpers";
 import { checkCompartmentTrigger } from "./compartment-trigger";
+import { closeReadOnlySessionDb } from "./read-session-db";
 
 const tempDirs: string[] = [];
 const originalXdgDataHome = process.env.XDG_DATA_HOME;
 
 afterEach(() => {
+    closeReadOnlySessionDb();
     closeDatabase();
     process.env.XDG_DATA_HOME = originalXdgDataHome;
     for (const dir of tempDirs) {
@@ -37,7 +39,7 @@ function createOpenCodeDb(
     sessionId: string,
     messages: Array<{ id: string; role: string; text?: string }>,
 ): void {
-    const dbPath = join(process.env.XDG_DATA_HOME!, "opencode", "opencode.db");
+    const dbPath = join(process.env.XDG_DATA_HOME!, "kilo", "kilo.db");
     mkdirSync(dirname(dbPath), { recursive: true });
     const db = new Database(dbPath);
     try {

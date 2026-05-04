@@ -9,7 +9,7 @@ export const NPM_FETCH_TIMEOUT = 10_000;
 export const CACHE_DIR = join(getKiloCacheDir(), "packages");
 
 /** Primary Kilo configuration file path (standard JSON). */
-export const USER_OPENCODE_CONFIG = join(getKiloConfigDir(), "kilo.json");
+export const USER_KILO_CONFIG = join(getKiloConfigDir(), "kilo.json");
 
 /** Alternative Kilo configuration file path (JSON with Comments). */
-export const USER_OPENCODE_CONFIG_JSONC = join(getKiloConfigDir(), "kilo.jsonc");
+export const USER_KILO_CONFIG_JSONC = join(getKiloConfigDir(), "kilo.jsonc");

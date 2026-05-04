@@ -12,17 +12,17 @@ describe("reasoning-capability", () => {
     beforeEach(() => {
         tempDir = mkdtempSync(join(tmpdir(), "mc-reasoning-capability-"));
         originalEnv = {
-            OPENCODE_MODELS_PATH: process.env.OPENCODE_MODELS_PATH,
-            OPENCODE_MODELS_URL: process.env.OPENCODE_MODELS_URL,
+            KILO_MODELS_PATH: process.env.KILO_MODELS_PATH,
+            KILO_MODELS_URL: process.env.KILO_MODELS_URL,
             XDG_CACHE_HOME: process.env.XDG_CACHE_HOME,
-            OPENCODE_CONFIG_DIR: process.env.OPENCODE_CONFIG_DIR,
+            KILO_CONFIG_DIR: process.env.KILO_CONFIG_DIR,
         };
-        delete process.env.OPENCODE_MODELS_PATH;
-        delete process.env.OPENCODE_MODELS_URL;
+        delete process.env.KILO_MODELS_PATH;
+        delete process.env.KILO_MODELS_URL;
         process.env.XDG_CACHE_HOME = tempDir;
-        const emptyConfigDir = join(tempDir, "config", "opencode");
+        const emptyConfigDir = join(tempDir, "config", "kilo");
         mkdirSync(emptyConfigDir, { recursive: true });
-        process.env.OPENCODE_CONFIG_DIR = emptyConfigDir;
+        process.env.KILO_CONFIG_DIR = emptyConfigDir;
         clearModelsDevCache();
     });
 
@@ -36,7 +36,7 @@ describe("reasoning-capability", () => {
     });
 
     it("returns true for models whose metadata declares an interleaved reasoning field", () => {
-        const opencodeDir = join(tempDir, "opencode");
+        const opencodeDir = join(tempDir, "kilo");
         mkdirSync(opencodeDir, { recursive: true });
         writeFileSync(
             join(opencodeDir, "models.json"),
@@ -58,7 +58,7 @@ describe("reasoning-capability", () => {
     });
 
     it("returns false for models without an interleaved reasoning field", () => {
-        const opencodeDir = join(tempDir, "opencode");
+        const opencodeDir = join(tempDir, "kilo");
         mkdirSync(opencodeDir, { recursive: true });
         writeFileSync(
             join(opencodeDir, "models.json"),

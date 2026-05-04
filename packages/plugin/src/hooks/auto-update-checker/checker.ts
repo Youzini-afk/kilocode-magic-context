@@ -10,12 +10,12 @@ import {
     NPM_FETCH_TIMEOUT,
     NPM_REGISTRY_URL,
     PACKAGE_NAME,
-    USER_OPENCODE_CONFIG,
-    USER_OPENCODE_CONFIG_JSONC,
+    USER_KILO_CONFIG,
+    USER_KILO_CONFIG_JSONC,
 } from "./constants";
 import {
+    KiloConfigSchema,
     NpmPackageEnvelopeSchema,
-    OpencodeConfigSchema,
     PackageJsonSchema,
     type PluginEntryInfo,
 } from "./types";
@@ -33,7 +33,7 @@ function pluginSpecifier(entry: string | readonly [string, Record<string, unknow
 }
 
 function getPluginEntries(config: unknown): string[] {
-    const parsed = OpencodeConfigSchema.safeParse(config);
+    const parsed = KiloConfigSchema.safeParse(config);
     if (!parsed.success) return [];
     return (parsed.data.plugin ?? []).map(pluginSpecifier).filter(isString);
 }
@@ -42,7 +42,7 @@ function parseJsonConfig(content: string): unknown | null {
     try {
         return parseJsonc(content);
     } catch (err) {
-        warn(`[auto-update-checker] Failed to parse OpenCode config: ${String(err)}`);
+        warn(`[auto-update-checker] Failed to parse Kilo config: ${String(err)}`);
         return null;
     }
 }
@@ -71,10 +71,14 @@ export function extractChannel(version: string | null): string {
 
 function getConfigPaths(directory: string): string[] {
     return [
-        join(directory, ".opencode", "opencode.json"),
-        join(directory, ".opencode", "opencode.jsonc"),
-        USER_OPENCODE_CONFIG,
-        USER_OPENCODE_CONFIG_JSONC,
+        join(directory, ".kilo", "kilo.json"),
+        join(directory, ".kilo", "kilo.jsonc"),
+        join(directory, ".kilocode", "kilo.json"),
+        join(directory, ".kilocode", "kilo.jsonc"),
+        join(directory, "kilo.json"),
+        join(directory, "kilo.jsonc"),
+        USER_KILO_CONFIG,
+        USER_KILO_CONFIG_JSONC,
     ];
 }
 
@@ -210,7 +214,7 @@ export function getCachedVersion(spec?: string | null): string | null {
         getCurrentRuntimePackageJsonPath(),
         spec ? getSpecCachePackageJsonPath(spec) : null,
         getSpecCachePackageJsonPath(`${PACKAGE_NAME}@latest`),
-        join(homedir(), ".cache", "opencode", "node_modules", PACKAGE_NAME, "package.json"),
+        join(homedir(), ".cache", "kilo", "node_modules", PACKAGE_NAME, "package.json"),
     ].filter(isString);
 
     for (const packageJsonPath of candidates) {
@@ -224,7 +228,7 @@ export function getCachedVersion(spec?: string | null): string | null {
                 return pkg.data.version;
             }
         } catch {
-            // Try the next known OpenCode cache location.
+            // Try the next known Kilo cache location.
         }
     }
 

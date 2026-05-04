@@ -1,5 +1,6 @@
 import { log } from "../../shared/logger";
 import type { Database } from "../../shared/sqlite";
+import { finalizeQuietly } from "../../shared/sqlite-helpers";
 import { healAllNullColumns } from "./storage-db";
 
 /**
@@ -49,11 +50,11 @@ const MIGRATIONS: Migration[] = [
 			`);
 
             // Migrate session_notes → notes (type='session', status='active')
-            const hasSessionNotes = db
-                .prepare(
-                    "SELECT name FROM sqlite_master WHERE type='table' AND name='session_notes'",
-                )
-                .get();
+            const hasSessionNotesStmt = db.prepare(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name='session_notes'",
+            );
+            const hasSessionNotes = hasSessionNotesStmt.get();
+            finalizeQuietly(hasSessionNotesStmt);
             if (hasSessionNotes) {
                 db.exec(`
 					INSERT INTO notes (type, status, content, session_id, created_at, updated_at)
@@ -63,9 +64,11 @@ const MIGRATIONS: Migration[] = [
             }
 
             // Migrate smart_notes → notes (type='smart', preserve status)
-            const hasSmartNotes = db
-                .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='smart_notes'")
-                .get();
+            const hasSmartNotesStmt = db.prepare(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name='smart_notes'",
+            );
+            const hasSmartNotes = hasSmartNotesStmt.get();
+            finalizeQuietly(hasSmartNotesStmt);
             if (hasSmartNotes) {
                 db.exec(`
 					INSERT INTO notes (type, status, content, session_id, project_path, surface_condition,
@@ -78,14 +81,14 @@ const MIGRATIONS: Migration[] = [
 
             // Drop old tables only after verifying row counts match
             if (hasSessionNotes) {
-                const sourceCount = (
-                    db.prepare("SELECT COUNT(*) as c FROM session_notes").get() as { c: number }
-                ).c;
-                const migratedCount = (
-                    db.prepare("SELECT COUNT(*) as c FROM notes WHERE type = 'session'").get() as {
-                        c: number;
-                    }
-                ).c;
+                const sourceCountStmt = db.prepare("SELECT COUNT(*) as c FROM session_notes");
+                const migratedCountStmt = db.prepare(
+                    "SELECT COUNT(*) as c FROM notes WHERE type = 'session'",
+                );
+                const sourceCount = (sourceCountStmt.get() as { c: number }).c;
+                const migratedCount = (migratedCountStmt.get() as { c: number }).c;
+                finalizeQuietly(sourceCountStmt);
+                finalizeQuietly(migratedCountStmt);
                 if (migratedCount >= sourceCount) {
                     db.exec("DROP TABLE session_notes");
                 } else {
@@ -95,14 +98,14 @@ const MIGRATIONS: Migration[] = [
                 }
             }
             if (hasSmartNotes) {
-                const sourceCount = (
-                    db.prepare("SELECT COUNT(*) as c FROM smart_notes").get() as { c: number }
-                ).c;
-                const migratedCount = (
-                    db.prepare("SELECT COUNT(*) as c FROM notes WHERE type = 'smart'").get() as {
-                        c: number;
-                    }
-                ).c;
+                const sourceCountStmt = db.prepare("SELECT COUNT(*) as c FROM smart_notes");
+                const migratedCountStmt = db.prepare(
+                    "SELECT COUNT(*) as c FROM notes WHERE type = 'smart'",
+                );
+                const sourceCount = (sourceCountStmt.get() as { c: number }).c;
+                const migratedCount = (migratedCountStmt.get() as { c: number }).c;
+                finalizeQuietly(sourceCountStmt);
+                finalizeQuietly(migratedCountStmt);
                 if (migratedCount >= sourceCount) {
                     db.exec("DROP TABLE smart_notes");
                 } else {
@@ -269,7 +272,7 @@ const MIGRATIONS: Migration[] = [
         // affected session) and idempotent — a fresh DB or already-healed DB
         // updates zero rows.
         up: (db: Database) => {
-            db.prepare(
+            const stmt = db.prepare(
                 `UPDATE session_meta
                  SET counter = (
                      SELECT MAX(tag_number)
@@ -282,7 +285,9 @@ const MIGRATIONS: Migration[] = [
                      WHERE tags.session_id = session_meta.session_id
                        AND tags.tag_number > session_meta.counter
                  )`,
-            ).run();
+            );
+            stmt.run();
+            finalizeQuietly(stmt);
         },
     },
     {
@@ -300,7 +305,9 @@ const MIGRATIONS: Migration[] = [
         // Fresh Kilo databases default notes to harness='kilo'; explicit
         // legacy imports can relabel copied rows before first Kilo startup.
         up: (db: Database) => {
-            const cols = db.prepare("PRAGMA table_info(notes)").all() as Array<{ name?: string }>;
+            const stmt = db.prepare("PRAGMA table_info(notes)");
+            const cols = stmt.all() as Array<{ name?: string }>;
+            finalizeQuietly(stmt);
             if (!cols.some((c) => c.name === "harness")) {
                 db.exec("ALTER TABLE notes ADD COLUMN harness TEXT NOT NULL DEFAULT 'kilo'");
             }
@@ -319,9 +326,11 @@ function ensureMigrationsTable(db: Database): void {
 }
 
 function getCurrentVersion(db: Database): number {
-    const row = db.prepare("SELECT MAX(version) as version FROM schema_migrations").get() as {
+    const stmt = db.prepare("SELECT MAX(version) as version FROM schema_migrations");
+    const row = stmt.get() as {
         version: number | null;
     } | null;
+    finalizeQuietly(stmt);
     return row?.version ?? 0;
 }
 
@@ -346,12 +355,23 @@ export function runMigrations(db: Database): void {
 
     for (const migration of pendingMigrations) {
         try {
-            db.transaction(() => {
-                migration.up(db);
-                db.prepare(
-                    "INSERT INTO schema_migrations (version, description, applied_at) VALUES (?, ?, ?)",
-                ).run(migration.version, migration.description, Date.now());
-            })();
+            db.exec("BEGIN");
+            try {
+                    migration.up(db);
+                    const stmt = db.prepare(
+                        "INSERT INTO schema_migrations (version, description, applied_at) VALUES (?, ?, ?)",
+                    );
+                    stmt.run(migration.version, migration.description, Date.now());
+                    finalizeQuietly(stmt);
+                    db.exec("COMMIT");
+            } catch (error) {
+                    try {
+                        db.exec("ROLLBACK");
+                    } catch {
+                        // ignore rollback failures; the outer handler reports the migration error.
+                    }
+                    throw error;
+            }
             log(`[migrations] applied v${migration.version}: ${migration.description}`);
         } catch (error) {
             log(

@@ -5,17 +5,21 @@ import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { Database } from "../../shared/sqlite";
-import { closeQuietly } from "../../shared/sqlite-helpers";
+import { closeQuietly, finalizeQuietly } from "../../shared/sqlite-helpers";
 import { closeReadOnlySessionDb, findLastAssistantModelFromOpenCodeDb } from "./read-session-db";
 
 const tempDirs: string[] = [];
 const originalXdgDataHome = process.env.XDG_DATA_HOME;
+const originalKiloDb = process.env.KILO_DB;
 
 afterEach(() => {
-    // Close any cached OpenCode read-only DB handle so the new XDG_DATA_HOME
+    // Close any cached Kilo read-only DB handle so the new XDG_DATA_HOME
     // points to a fresh DB on the next test case.
     closeReadOnlySessionDb();
-    process.env.XDG_DATA_HOME = originalXdgDataHome;
+    if (originalXdgDataHome === undefined) delete process.env.XDG_DATA_HOME;
+    else process.env.XDG_DATA_HOME = originalXdgDataHome;
+    if (originalKiloDb === undefined) delete process.env.KILO_DB;
+    else process.env.KILO_DB = originalKiloDb;
     for (const dir of tempDirs) {
         rmSync(dir, { recursive: true, force: true });
     }
@@ -26,6 +30,7 @@ function useTempDataHome(prefix: string): void {
     const dir = mkdtempSync(join(tmpdir(), prefix));
     tempDirs.push(dir);
     process.env.XDG_DATA_HOME = dir;
+    delete process.env.KILO_DB;
 }
 
 interface MessageRow {
@@ -37,8 +42,8 @@ interface MessageRow {
     timeCreated: number;
 }
 
-function createOpenCodeDb(rows: MessageRow[]): void {
-    const dbPath = join(process.env.XDG_DATA_HOME!, "opencode", "opencode.db");
+function createKiloDb(rows: MessageRow[]): void {
+    const dbPath = join(process.env.XDG_DATA_HOME!, "kilo", "kilo.db");
     mkdirSync(dirname(dbPath), { recursive: true });
     const db = new Database(dbPath);
     try {
@@ -67,6 +72,7 @@ function createOpenCodeDb(rows: MessageRow[]): void {
                 JSON.stringify(data),
             );
         }
+        finalizeQuietly(insert);
     } finally {
         closeQuietly(db);
     }
@@ -75,7 +81,7 @@ function createOpenCodeDb(rows: MessageRow[]): void {
 describe("findLastAssistantModelFromOpenCodeDb", () => {
     it("returns null for a session with no assistant messages", () => {
         useTempDataHome("read-session-db-no-assistant-");
-        createOpenCodeDb([
+        createKiloDb([
             {
                 id: "msg_user1",
                 sessionId: "ses_A",
@@ -88,7 +94,7 @@ describe("findLastAssistantModelFromOpenCodeDb", () => {
 
     it("returns the most recent assistant's providerID/modelID", () => {
         useTempDataHome("read-session-db-latest-assistant-");
-        createOpenCodeDb([
+        createKiloDb([
             {
                 id: "msg_old",
                 sessionId: "ses_A",
@@ -114,7 +120,7 @@ describe("findLastAssistantModelFromOpenCodeDb", () => {
 
     it("ignores user messages even when they are newer", () => {
         useTempDataHome("read-session-db-ignore-user-");
-        createOpenCodeDb([
+        createKiloDb([
             {
                 id: "msg_asst",
                 sessionId: "ses_A",
@@ -138,7 +144,7 @@ describe("findLastAssistantModelFromOpenCodeDb", () => {
 
     it("ignores assistants without providerID or modelID", () => {
         useTempDataHome("read-session-db-incomplete-assistant-");
-        createOpenCodeDb([
+        createKiloDb([
             {
                 id: "msg_full",
                 sessionId: "ses_A",
@@ -165,7 +171,7 @@ describe("findLastAssistantModelFromOpenCodeDb", () => {
 
     it("scopes by session ID and does not leak across sessions", () => {
         useTempDataHome("read-session-db-session-scope-");
-        createOpenCodeDb([
+        createKiloDb([
             {
                 id: "msg_A1",
                 sessionId: "ses_A",

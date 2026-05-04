@@ -12,7 +12,7 @@ import {
 import { CACHE_DIR, NPM_FETCH_TIMEOUT, NPM_REGISTRY_URL, PACKAGE_NAME } from "./constants";
 import type { AutoUpdateCheckerOptions } from "./types";
 
-type OpenCodeEvent = {
+type KiloEvent = {
     type: string;
     properties?: unknown;
 };
@@ -40,7 +40,7 @@ export function createAutoUpdateCheckerHook(
 
     let hasChecked = false;
 
-    return async ({ event }: { event: OpenCodeEvent }) => {
+    return async ({ event }: { event: KiloEvent }) => {
         if (!enabled) return;
         if (event.type !== "session.created") return;
         if (hasChecked) return;
@@ -97,7 +97,7 @@ async function runStartupCheck(
         showToast(
             ctx,
             `Magic Context ${displayVersion ?? "unknown"}`,
-            "@cortexkit/opencode-magic-context is active.",
+            `${PACKAGE_NAME} is active.`,
             "info",
         );
     }
@@ -135,7 +135,7 @@ async function runBackgroundUpdateCheck(
         showToast(
             ctx,
             "Magic Context update check failed",
-            "Could not check npm for @cortexkit/opencode-magic-context updates. Continuing with the cached version.",
+            `Could not check npm for ${PACKAGE_NAME} updates. Continuing with the cached version.`,
             "warning",
             8000,
         );
@@ -155,7 +155,7 @@ async function runBackgroundUpdateCheck(
         showToast(
             ctx,
             `Magic Context ${latestVersion}`,
-            `v${latestVersion} available. Version is pinned; update your OpenCode plugin config to upgrade.`,
+            `v${latestVersion} available. Version is pinned; update your Kilo plugin config to upgrade.`,
             "info",
             8000,
         );
@@ -193,7 +193,7 @@ async function runBackgroundUpdateCheck(
         showToast(
             ctx,
             "Magic Context Updated!",
-            `v${currentVersion} → v${latestVersion}\nRestart OpenCode to apply.`,
+            `v${currentVersion} → v${latestVersion}\nRestart Kilo to apply.`,
             "success",
             8000,
         );

@@ -3,7 +3,7 @@
 import { afterEach, describe, expect, it } from "bun:test";
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { Database } from "../../shared/sqlite";
 import { closeQuietly } from "../../shared/sqlite-helpers";
 import { closeDatabase, isDatabasePersisted, openDatabase } from "./storage-db";
@@ -24,8 +24,14 @@ function useTempDataHome(prefix: string): string {
 }
 
 function resolveDbPath(dataHome: string): string {
-    // Plugin v0.16+ — shared cortexkit/magic-context path. See data-path.ts.
-    return join(dataHome, "cortexkit", "magic-context", "context.db");
+    return join(
+        dataHome,
+        "kilo",
+        "storage",
+        "plugin",
+        "kilocode-magic-context",
+        "context.db",
+    );
 }
 
 afterEach(() => {
@@ -108,9 +114,10 @@ describe("storage-db", () => {
 
         it("#when file path setup fails #then throws so callers fail closed (no in-memory fallback)", () => {
             const dataHome = useTempDataHome("storage-db-fallback-");
-            // Block mkdirSync by planting a file at the cortexkit segment of
-            // the new shared path. See storage.test.ts for the same pattern.
-            writeFileSync(join(dataHome, "cortexkit"), "not-a-directory", "utf-8");
+            // Block mkdirSync by planting a file at the kilo segment of the
+            // Kilo-native plugin storage path. See storage.test.ts for the
+            // same pattern.
+            writeFileSync(join(dataHome, "kilo"), "not-a-directory", "utf-8");
 
             // Failing closed is intentional. Falling back to :memory: silently
             // disables persistent state (memories, historian compartments,
@@ -123,9 +130,7 @@ describe("storage-db", () => {
         it("#when an existing session_meta table lacks compartment_in_progress #then openDatabase adds the missing column", () => {
             const dataHome = useTempDataHome("storage-db-migrate-compartment-flag-");
             const dbPath = resolveDbPath(dataHome);
-            mkdirSync(join(dataHome, "cortexkit", "magic-context"), {
-                recursive: true,
-            });
+            mkdirSync(dirname(dbPath), { recursive: true });
             const legacyDb = new Database(dbPath);
             legacyDb.run(`
         CREATE TABLE session_meta (
@@ -171,9 +176,7 @@ describe("storage-db", () => {
         it("#when an existing memory_embeddings table lacks model_id #then openDatabase adds the missing column", () => {
             const dataHome = useTempDataHome("storage-db-migrate-embedding-model-");
             const dbPath = resolveDbPath(dataHome);
-            mkdirSync(join(dataHome, "cortexkit", "magic-context"), {
-                recursive: true,
-            });
+            mkdirSync(dirname(dbPath), { recursive: true });
             const legacyDb = new Database(dbPath);
             legacyDb.run(`
         CREATE TABLE memories (

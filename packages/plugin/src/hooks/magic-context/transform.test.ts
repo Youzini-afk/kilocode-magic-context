@@ -31,6 +31,7 @@ import type { PluginContext } from "../../plugin/types";
 import { clearModelsDevCache } from "../../shared/models-dev-cache";
 import { Database } from "../../shared/sqlite";
 import { closeQuietly } from "../../shared/sqlite-helpers";
+import { closeReadOnlySessionDb } from "./read-session-db";
 import { createNudgePlacementStore, createTransform } from "./transform";
 
 type TextPart = { type: "text"; text: string };
@@ -64,6 +65,7 @@ const originalXdgDataHome = process.env.XDG_DATA_HOME;
 const originalXdgCacheHome = process.env.XDG_CACHE_HOME;
 
 afterEach(() => {
+    closeReadOnlySessionDb();
     closeDatabase();
     clearModelsDevCache();
     if (originalXdgDataHome === undefined) delete process.env.XDG_DATA_HOME;
@@ -83,11 +85,11 @@ function makeTempDir(prefix: string): string {
     return dir;
 }
 
-// Points both XDG_DATA_HOME (plugin storage) and XDG_CACHE_HOME (OpenCode's
+// Points both XDG_DATA_HOME (plugin storage) and XDG_CACHE_HOME (Kilo's
 // models.json cache read by `models-dev-cache.ts`) at the same temp directory.
 // Tests that only touch plugin storage don't care about the cache isolation;
 // tests that exercise model-capability lookup (e.g., interleaved.field gating)
-// can write a synthetic models.json into <temp>/opencode/models.json and have
+// can write a synthetic models.json into <temp>/kilo/models.json and have
 // models-dev-cache read it.
 function useTempDataHome(prefix: string): void {
     const dir = makeTempDir(prefix);
@@ -98,6 +100,17 @@ function useTempDataHome(prefix: string): void {
 function text(message: TestMessage, index: number): string {
     const part = message.parts[index];
     return part.type === "text" ? part.text : "";
+}
+
+async function waitForMockCalls(
+    fn: { mock: { calls: unknown[] } },
+    minCalls: number,
+): Promise<void> {
+    const deadline = Date.now() + 1000;
+    while (fn.mock.calls.length < minCalls) {
+        if (Date.now() > deadline) break;
+        await new Promise((resolve) => setTimeout(resolve, 0));
+    }
 }
 
 function toolOutput(message: TestMessage, index: number): string {
@@ -1705,7 +1718,7 @@ describe("createTransform", () => {
         // declares `interleaved.field = "reasoning_content"` without needing
         // live provider data.
         const cacheHome = process.env.XDG_CACHE_HOME as string;
-        const opencodeDir = join(cacheHome, "opencode");
+        const opencodeDir = join(cacheHome, "kilo");
         mkdirSync(opencodeDir, { recursive: true });
         writeFileSync(
             join(opencodeDir, "models.json"),
@@ -1823,7 +1836,7 @@ describe("createTransform", () => {
         // model uses interleaved reasoning.
         useTempDataHome("context-transform-interleaved-merged-");
         const cacheHome = process.env.XDG_CACHE_HOME as string;
-        const opencodeDir = join(cacheHome, "opencode");
+        const opencodeDir = join(cacheHome, "kilo");
         mkdirSync(opencodeDir, { recursive: true });
         writeFileSync(
             join(opencodeDir, "models.json"),
@@ -1920,7 +1933,7 @@ function createOpenCodeDbForTransform(
     sessionId: string,
     messages: Array<{ id: string; role: string; text: string }>,
 ): void {
-    const dbPath = join(process.env.XDG_DATA_HOME!, "opencode", "opencode.db");
+    const dbPath = join(process.env.XDG_DATA_HOME!, "kilo", "kilo.db");
     mkdirSync(dirname(dbPath), { recursive: true });
     const db = new Database(dbPath);
     try {
@@ -2218,6 +2231,7 @@ describe("createTransform historian failure handling", () => {
         await transform({}, { messages: secondPass });
         incrementHistorianFailure(db, "ses-emergency", "503 overloaded");
         await transform({}, { messages: thirdPass });
+        await waitForMockCalls(prompt, 2);
 
         const emergencyNotifications = (
             prompt.mock.calls as unknown as Array<

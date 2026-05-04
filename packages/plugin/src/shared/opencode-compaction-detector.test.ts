@@ -9,17 +9,17 @@ describe("opencode-compaction-detector", () => {
 
     beforeEach(() => {
         tmpDir = join("/tmp", `compaction-detector-test-${Date.now()}`);
-        mkdirSync(join(tmpDir, ".opencode"), { recursive: true });
-        delete process.env.OPENCODE_DISABLE_AUTOCOMPACT;
+        mkdirSync(join(tmpDir, ".kilo"), { recursive: true });
+        delete process.env.KILO_DISABLE_AUTOCOMPACT;
         spyOn(configDir, "getOpenCodeConfigPaths").mockReturnValue({
-            configJson: join(tmpDir, "user-config", "opencode.json"),
-            configJsonc: join(tmpDir, "user-config", "opencode.jsonc"),
+            configJson: join(tmpDir, "user-config", "kilo.json"),
+            configJsonc: join(tmpDir, "user-config", "kilo.jsonc"),
         } as ReturnType<typeof configDir.getOpenCodeConfigPaths>);
     });
 
     afterEach(() => {
         rmSync(tmpDir, { recursive: true, force: true });
-        delete process.env.OPENCODE_DISABLE_AUTOCOMPACT;
+        delete process.env.KILO_DISABLE_AUTOCOMPACT;
     });
 
     describe("#given no config exists", () => {
@@ -34,9 +34,9 @@ describe("opencode-compaction-detector", () => {
         });
     });
 
-    describe("#given OPENCODE_DISABLE_AUTOCOMPACT env flag is set", () => {
+    describe("#given KILO_DISABLE_AUTOCOMPACT env flag is set", () => {
         it("#then returns false", () => {
-            process.env.OPENCODE_DISABLE_AUTOCOMPACT = "1";
+            process.env.KILO_DISABLE_AUTOCOMPACT = "1";
 
             const result = isOpenCodeAutoCompactionEnabled(tmpDir);
 
@@ -45,9 +45,9 @@ describe("opencode-compaction-detector", () => {
     });
 
     describe("#given project config has compaction.auto = false", () => {
-        it("#when opencode.json #then returns false", () => {
+        it("#when kilo.json #then returns false", () => {
             writeFileSync(
-                join(tmpDir, ".opencode", "opencode.json"),
+                join(tmpDir, ".kilo", "kilo.json"),
                 JSON.stringify({ compaction: { auto: false } }),
             );
 
@@ -56,9 +56,9 @@ describe("opencode-compaction-detector", () => {
             expect(result).toBe(false);
         });
 
-        it("#when opencode.jsonc #then returns false", () => {
+        it("#when kilo.jsonc #then returns false", () => {
             writeFileSync(
-                join(tmpDir, ".opencode", "opencode.jsonc"),
+                join(tmpDir, ".kilo", "kilo.jsonc"),
                 `{
           // compaction disabled
           "compaction": { "auto": false }
@@ -74,7 +74,7 @@ describe("opencode-compaction-detector", () => {
     describe("#given project config has compaction.auto = true", () => {
         it("#then returns true", () => {
             writeFileSync(
-                join(tmpDir, ".opencode", "opencode.json"),
+                join(tmpDir, ".kilo", "kilo.json"),
                 JSON.stringify({ compaction: { auto: true } }),
             );
 
@@ -87,7 +87,7 @@ describe("opencode-compaction-detector", () => {
     describe("#given project config has compaction.prune = true", () => {
         it("#then returns true (conflict enabled)", () => {
             writeFileSync(
-                join(tmpDir, ".opencode", "opencode.json"),
+                join(tmpDir, ".kilo", "kilo.json"),
                 JSON.stringify({ compaction: { auto: false, prune: true } }),
             );
 
@@ -100,7 +100,7 @@ describe("opencode-compaction-detector", () => {
     describe("#given project config has auto/prune both false", () => {
         it("#then returns false", () => {
             writeFileSync(
-                join(tmpDir, ".opencode", "opencode.json"),
+                join(tmpDir, ".kilo", "kilo.json"),
                 JSON.stringify({ compaction: { auto: false, prune: false } }),
             );
 
@@ -113,7 +113,7 @@ describe("opencode-compaction-detector", () => {
     describe("#given project config has only compaction.prune = false", () => {
         it("#then returns false", () => {
             writeFileSync(
-                join(tmpDir, ".opencode", "opencode.json"),
+                join(tmpDir, ".kilo", "kilo.json"),
                 JSON.stringify({ compaction: { prune: false } }),
             );
 
@@ -126,11 +126,11 @@ describe("opencode-compaction-detector", () => {
     describe("#given jsonc and json both exist", () => {
         it("#then jsonc takes precedence", () => {
             writeFileSync(
-                join(tmpDir, ".opencode", "opencode.json"),
+                join(tmpDir, ".kilo", "kilo.json"),
                 JSON.stringify({ compaction: { auto: true } }),
             );
             writeFileSync(
-                join(tmpDir, ".opencode", "opencode.jsonc"),
+                join(tmpDir, ".kilo", "kilo.jsonc"),
                 `{ "compaction": { "auto": false } }`,
             );
 
@@ -143,7 +143,7 @@ describe("opencode-compaction-detector", () => {
     describe("#given config exists but no compaction field", () => {
         it("#then returns true (default)", () => {
             writeFileSync(
-                join(tmpDir, ".opencode", "opencode.json"),
+                join(tmpDir, ".kilo", "kilo.json"),
                 JSON.stringify({ model: "claude-opus-4-6" }),
             );
 
@@ -155,9 +155,9 @@ describe("opencode-compaction-detector", () => {
 
     describe("#given env flag overrides config", () => {
         it("#then env flag wins even when config has auto: true", () => {
-            process.env.OPENCODE_DISABLE_AUTOCOMPACT = "true";
+            process.env.KILO_DISABLE_AUTOCOMPACT = "true";
             writeFileSync(
-                join(tmpDir, ".opencode", "opencode.json"),
+                join(tmpDir, ".kilo", "kilo.json"),
                 JSON.stringify({ compaction: { auto: true } }),
             );
 
@@ -168,9 +168,9 @@ describe("opencode-compaction-detector", () => {
     });
 
     describe("#given root-level project config", () => {
-        it("#when root opencode.json has compaction.auto = false #then returns false", () => {
+        it("#when root kilo.json has compaction.auto = false #then returns false", () => {
             writeFileSync(
-                join(tmpDir, "opencode.json"),
+                join(tmpDir, "kilo.json"),
                 JSON.stringify({ compaction: { auto: false } }),
             );
 
@@ -179,8 +179,8 @@ describe("opencode-compaction-detector", () => {
             expect(result).toBe(false);
         });
 
-        it("#when root opencode.jsonc has compaction.auto = false #then returns false", () => {
-            writeFileSync(join(tmpDir, "opencode.jsonc"), `{ "compaction": { "auto": false } }`);
+        it("#when root kilo.jsonc has compaction.auto = false #then returns false", () => {
+            writeFileSync(join(tmpDir, "kilo.jsonc"), `{ "compaction": { "auto": false } }`);
 
             const result = isOpenCodeAutoCompactionEnabled(tmpDir);
 
@@ -188,14 +188,14 @@ describe("opencode-compaction-detector", () => {
         });
     });
 
-    describe("#given .opencode/ overrides root-level config", () => {
-        it("#when root says false but .opencode says true #then .opencode wins", () => {
+    describe("#given .kilo/ overrides root-level config", () => {
+        it("#when root says false but .kilo says true #then .kilo wins", () => {
             writeFileSync(
-                join(tmpDir, "opencode.json"),
+                join(tmpDir, "kilo.json"),
                 JSON.stringify({ compaction: { auto: false } }),
             );
             writeFileSync(
-                join(tmpDir, ".opencode", "opencode.json"),
+                join(tmpDir, ".kilo", "kilo.json"),
                 JSON.stringify({ compaction: { auto: true } }),
             );
 
@@ -204,13 +204,13 @@ describe("opencode-compaction-detector", () => {
             expect(result).toBe(true);
         });
 
-        it("#when root says true but .opencode says false #then .opencode wins", () => {
+        it("#when root says true but .kilo says false #then .kilo wins", () => {
             writeFileSync(
-                join(tmpDir, "opencode.json"),
+                join(tmpDir, "kilo.json"),
                 JSON.stringify({ compaction: { auto: true } }),
             );
             writeFileSync(
-                join(tmpDir, ".opencode", "opencode.json"),
+                join(tmpDir, ".kilo", "kilo.json"),
                 JSON.stringify({ compaction: { auto: false } }),
             );
 

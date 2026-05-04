@@ -9,30 +9,33 @@ function freshCacheImport() {
     return import(`./cache.ts?test=${importCounter++}`);
 }
 
+function slash(value: fs.PathLike): string {
+    return String(value).replace(/\\/g, "/");
+}
+
 afterEach(() => {
     mock.restore();
 });
 
 describe("auto-update-checker/cache", () => {
     describe("resolveInstallContext", () => {
-        test("detects OpenCode packages install root from runtime package path", async () => {
+        test("detects Kilo packages install root from runtime package path", async () => {
             const existsSpy = spyOn(fs, "existsSync").mockImplementation(
                 (p: fs.PathLike) =>
-                    String(p) ===
-                    "/home/user/.cache/opencode/packages/@cortexkit/opencode-magic-context@latest/package.json",
+                    slash(p) ===
+                    "/home/user/.cache/kilo/packages/kilocode-magic-context@latest/package.json",
             );
             const { resolveInstallContext } = await freshCacheImport();
 
-            expect(
-                resolveInstallContext(
-                    "/home/user/.cache/opencode/packages/@cortexkit/opencode-magic-context@latest/node_modules/@cortexkit/opencode-magic-context/package.json",
-                ),
-            ).toEqual({
-                installDir:
-                    "/home/user/.cache/opencode/packages/@cortexkit/opencode-magic-context@latest",
-                packageJsonPath:
-                    "/home/user/.cache/opencode/packages/@cortexkit/opencode-magic-context@latest/package.json",
-            });
+            const context = resolveInstallContext(
+                "/home/user/.cache/kilo/packages/kilocode-magic-context@latest/node_modules/kilocode-magic-context/package.json",
+            );
+            expect(context?.installDir).toBe(
+                "/home/user/.cache/kilo/packages/kilocode-magic-context@latest",
+            );
+            expect(slash(context?.packageJsonPath ?? "")).toBe(
+                "/home/user/.cache/kilo/packages/kilocode-magic-context@latest/package.json",
+            );
 
             existsSpy.mockRestore();
         });
@@ -43,7 +46,7 @@ describe("auto-update-checker/cache", () => {
 
             expect(
                 resolveInstallContext(
-                    "/home/user/.cache/opencode/packages/@cortexkit/opencode-magic-context@latest/node_modules/@cortexkit/opencode-magic-context/package.json",
+                    "/home/user/.cache/kilo/packages/kilocode-magic-context@latest/node_modules/kilocode-magic-context/package.json",
                 ),
             ).toBeNull();
 
@@ -56,28 +59,25 @@ describe("auto-update-checker/cache", () => {
             const existsSpy = spyOn(fs, "existsSync").mockReturnValue(false);
             const { preparePackageUpdate } = await freshCacheImport();
 
-            expect(
-                preparePackageUpdate("0.15.6", "@cortexkit/opencode-magic-context", null),
-            ).toBeNull();
+            expect(preparePackageUpdate("0.15.6", "kilocode-magic-context", null)).toBeNull();
 
             existsSpy.mockRestore();
         });
 
         test("updates wrapper dependency and removes installed scoped package", async () => {
-            const root =
-                "/home/user/.cache/opencode/packages/@cortexkit/opencode-magic-context@latest";
+            const root = "/home/user/.cache/kilo/packages/kilocode-magic-context@latest";
             const existsSpy = spyOn(fs, "existsSync").mockImplementation((p: fs.PathLike) => {
-                const value = String(p);
+                const value = slash(p);
                 return (
                     value === `${root}/package.json` ||
-                    value === `${root}/node_modules/@cortexkit/opencode-magic-context`
+                    value === `${root}/node_modules/kilocode-magic-context`
                 );
             });
             const readSpy = spyOn(fs, "readFileSync").mockImplementation(
                 (p: fs.PathOrFileDescriptor) => {
-                    if (String(p) === `${root}/package.json`) {
+                    if (slash(String(p)) === `${root}/package.json`) {
                         return JSON.stringify({
-                            dependencies: { "@cortexkit/opencode-magic-context": "0.15.5" },
+                            dependencies: { "kilocode-magic-context": "0.15.5" },
                         });
                     }
                     return "";
@@ -95,20 +95,20 @@ describe("auto-update-checker/cache", () => {
             expect(
                 preparePackageUpdate(
                     "0.15.6",
-                    "@cortexkit/opencode-magic-context",
-                    `${root}/node_modules/@cortexkit/opencode-magic-context/package.json`,
+                    "kilocode-magic-context",
+                    `${root}/node_modules/kilocode-magic-context/package.json`,
                 ),
             ).toBe(root);
             expect(JSON.parse(writes[0])).toEqual({
-                dependencies: { "@cortexkit/opencode-magic-context": "0.15.6" },
+                dependencies: { "kilocode-magic-context": "0.15.6" },
             });
-            expect(rmSpy).toHaveBeenCalledWith(
-                `${root}/node_modules/@cortexkit/opencode-magic-context`,
-                {
-                    recursive: true,
-                    force: true,
-                },
+            expect(slash(rmSpy.mock.calls[0]?.[0] ?? "")).toBe(
+                `${root}/node_modules/kilocode-magic-context`,
             );
+            expect(rmSpy.mock.calls[0]?.[1]).toEqual({
+                recursive: true,
+                force: true,
+            });
 
             existsSpy.mockRestore();
             readSpy.mockRestore();
@@ -117,17 +117,16 @@ describe("auto-update-checker/cache", () => {
         });
 
         test("does not rewrite package.json when dependency is already target version", async () => {
-            const root =
-                "/home/user/.cache/opencode/packages/@cortexkit/opencode-magic-context@latest";
+            const root = "/home/user/.cache/kilo/packages/kilocode-magic-context@latest";
             const existsSpy = spyOn(fs, "existsSync").mockImplementation((p: fs.PathLike) => {
-                const value = String(p);
+                const value = slash(p);
                 return (
                     value === `${root}/package.json` ||
-                    value === `${root}/node_modules/@cortexkit/opencode-magic-context`
+                    value === `${root}/node_modules/kilocode-magic-context`
                 );
             });
             const readSpy = spyOn(fs, "readFileSync").mockReturnValue(
-                JSON.stringify({ dependencies: { "@cortexkit/opencode-magic-context": "0.15.6" } }),
+                JSON.stringify({ dependencies: { "kilocode-magic-context": "0.15.6" } }),
             );
             const writeSpy = spyOn(fs, "writeFileSync").mockImplementation(() => {});
             const rmSpy = spyOn(fs, "rmSync").mockReturnValue(undefined);
@@ -136,8 +135,8 @@ describe("auto-update-checker/cache", () => {
             expect(
                 preparePackageUpdate(
                     "0.15.6",
-                    "@cortexkit/opencode-magic-context",
-                    `${root}/node_modules/@cortexkit/opencode-magic-context/package.json`,
+                    "kilocode-magic-context",
+                    `${root}/node_modules/kilocode-magic-context/package.json`,
                 ),
             ).toBe(root);
             expect(writeSpy).not.toHaveBeenCalled();
@@ -159,9 +158,9 @@ describe("auto-update-checker/cache", () => {
             });
             const { runBunInstallSafe } = await freshCacheImport();
 
-            expect(await runBunInstallSafe("/tmp/opencode", { timeoutMs: 1000 })).toBe(true);
+            expect(await runBunInstallSafe("/tmp/kilo", { timeoutMs: 1000 })).toBe(true);
             expect(spawnMock).toHaveBeenCalledWith("bun", ["install"], {
-                cwd: "/tmp/opencode",
+                cwd: "/tmp/kilo",
                 stdio: "pipe",
             });
 
@@ -175,7 +174,7 @@ describe("auto-update-checker/cache", () => {
             const spawnMock = spyOn(childProcess, "spawn").mockReturnValue(proc);
             const { runBunInstallSafe } = await freshCacheImport();
 
-            expect(await runBunInstallSafe("/tmp/opencode", { timeoutMs: 1 })).toBe(false);
+            expect(await runBunInstallSafe("/tmp/kilo", { timeoutMs: 1 })).toBe(false);
             expect(killMock).toHaveBeenCalled();
 
             spawnMock.mockRestore();

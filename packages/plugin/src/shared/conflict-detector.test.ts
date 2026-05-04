@@ -21,23 +21,23 @@ describe("detectConflicts", () => {
         const root = mkdtempSync(join(tmpdir(), "mc-conflict-"));
         projectDir = join(root, "project");
         mkdirSync(projectDir, { recursive: true });
-        userConfigDir = join(root, "user-config", "opencode");
+        userConfigDir = join(root, "user-config", "kilo");
         mkdirSync(userConfigDir, { recursive: true });
 
         // Save and override every env var that affects config-path resolution.
-        // OPENCODE_CONFIG_DIR takes precedence over XDG_CONFIG_HOME, so we set
+        // KILO_CONFIG_DIR takes precedence over XDG_CONFIG_HOME, so we set
         // it directly and clear XDG to fully isolate from any inherited or
         // test-leaked state.
         originalEnv = {
-            OPENCODE_CONFIG_DIR: process.env.OPENCODE_CONFIG_DIR,
+            KILO_CONFIG_DIR: process.env.KILO_CONFIG_DIR,
             XDG_CONFIG_HOME: process.env.XDG_CONFIG_HOME,
-            OPENCODE_DISABLE_AUTOCOMPACT: process.env.OPENCODE_DISABLE_AUTOCOMPACT,
+            KILO_DISABLE_AUTOCOMPACT: process.env.KILO_DISABLE_AUTOCOMPACT,
         };
-        process.env.OPENCODE_CONFIG_DIR = userConfigDir;
+        process.env.KILO_CONFIG_DIR = userConfigDir;
         delete process.env.XDG_CONFIG_HOME;
         // Disable auto-compaction default during tests so we isolate plugin
         // detection from compaction detection.
-        process.env.OPENCODE_DISABLE_AUTOCOMPACT = "1";
+        process.env.KILO_DISABLE_AUTOCOMPACT = "1";
     });
 
     afterEach(() => {
@@ -51,7 +51,7 @@ describe("detectConflicts", () => {
     });
 
     function writeProjectConfig(plugins: Array<string | [string, unknown]>): void {
-        writeFileSync(join(projectDir, "opencode.json"), JSON.stringify({ plugin: plugins }));
+        writeFileSync(join(projectDir, "kilo.json"), JSON.stringify({ plugin: plugins }));
     }
 
     // --- DCP detection ---
