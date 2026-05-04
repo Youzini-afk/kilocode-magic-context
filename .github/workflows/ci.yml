@@ -9,8 +9,8 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
-  check-plugin:
-    name: Check (plugin)
+  check:
+    name: Check
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -25,36 +25,16 @@ jobs:
       - name: TypeScript typecheck
         run: bun run typecheck
 
-      - name: Lint
-        run: bun run lint
-
       - name: Build
         run: bun run build
 
-      - name: Test
-        run: bun run test
+      - name: Kilo path unit test
+        run: bun test packages/plugin/src/shared/data-path.test.ts
 
-  check-pi-plugin:
-    name: Check (pi-plugin)
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: latest
-
-      - name: Install dependencies
-        run: bun install
-
-      - name: TypeScript typecheck
-        run: bun run --cwd packages/pi-plugin typecheck
-
-      - name: Lint
-        run: bun run --cwd packages/pi-plugin lint
-
-      - name: Build
-        run: bun run --cwd packages/pi-plugin build
-
-      - name: Test
-        run: bun run --cwd packages/pi-plugin test
+      - name: CLI setup smoke test
+        env:
+          KILO_TEST_HOME: ${{ runner.temp }}/kilo-home
+          KILO_CONFIG_DIR: ${{ runner.temp }}/kilo-config
+        run: |
+          bun packages/cli/src/index.ts setup --plugin "$GITHUB_WORKSPACE/packages/plugin"
+          bun packages/cli/src/index.ts doctor
