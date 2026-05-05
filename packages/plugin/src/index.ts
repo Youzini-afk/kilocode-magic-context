@@ -44,12 +44,14 @@ type SettingsModelOption = {
 };
 
 function buildModelOptions(data: unknown): SettingsModelOption[] {
-    const all =
-        data && typeof data === "object" && "all" in data && Array.isArray((data as { all?: unknown }).all)
-            ? ((data as { all: unknown[] }).all)
-            : [];
+    const providers =
+        data && typeof data === "object" && "providers" in data && Array.isArray((data as { providers?: unknown }).providers)
+            ? (data as { providers: unknown[] }).providers
+            : data && typeof data === "object" && "all" in data && Array.isArray((data as { all?: unknown }).all)
+              ? (data as { all: unknown[] }).all
+              : [];
     const options: SettingsModelOption[] = [];
-    for (const provider of all) {
+    for (const provider of providers) {
         if (!provider || typeof provider !== "object") continue;
         const record = provider as { id?: unknown; name?: unknown; models?: unknown };
         if (typeof record.id !== "string" || !record.models || typeof record.models !== "object") continue;
