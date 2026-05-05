@@ -92,7 +92,59 @@
 			"title": "Magic Context",
 			"icon": "brain",
 			"entry": "settings/index.html"
-		}
+		},
+		"capabilities": [
+			{
+				"id": "context.management",
+				"label": "Context management",
+				"mode": "exclusive"
+			}
+		],
+		"conflicts": [
+			{
+				"id": "native.compaction",
+				"type": "nativeFeature",
+				"feature": "native.compaction",
+				"severity": "blocking",
+				"reason": "Magic Context manages context and cannot run alongside Kilo native auto-summary.",
+				"resolutions": [
+					{
+						"id": "use-plugin",
+						"label": "Use Magic Context",
+						"recommended": true,
+						"actions": [
+							{
+								"type": "setNativeFeature",
+								"feature": "native.compaction.auto",
+								"enabled": false
+							},
+							{
+								"type": "setNativeFeature",
+								"feature": "native.compaction.prune",
+								"enabled": false
+							},
+							{
+								"type": "createPluginConfig"
+							},
+							{
+								"type": "setPluginEnabled",
+								"enabled": true
+							}
+						]
+					},
+					{
+						"id": "keep-native",
+						"label": "Keep Kilo Native",
+						"actions": [
+							{
+								"type": "setPluginEnabled",
+								"enabled": false
+							}
+						]
+					}
+				]
+			}
+		]
 	},
 	"peerDependencies": {
 		"@kilocode/plugin": ">=7.2.34"

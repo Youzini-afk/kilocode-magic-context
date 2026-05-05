@@ -368,7 +368,8 @@ export function formatConflictShort(result: ConflictResult): string {
         "",
         ...result.reasons.map((r) => `• ${r}`),
         "",
-        "Fix: run `bunx --bun kilocode-magic-context@latest doctor --fix`",
+        "Fix in VS Code: open Kilo Settings → Plugins → Magic Context and choose a conflict resolution.",
+        "CLI fallback: run `bunx --bun kilocode-magic-context@latest doctor --fix`.",
     ];
     return lines.join("\n");
 }
