@@ -372,8 +372,8 @@ const server: Plugin = async (ctx) => {
                     return readPluginSettingsConfig(ctx.directory);
                 }
                 if (input.method === "kilo.models") {
-                    const result = await ctx.client.provider
-                        .list({ query: { directory: ctx.directory } })
+                    const result = await ctx.client.config
+                        .providers({ query: { directory: ctx.directory } })
                         .catch(() => undefined);
                     return { models: buildModelOptions(result?.data) };
                 }
