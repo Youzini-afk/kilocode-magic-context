@@ -1,3 +1,0 @@
-import type { Database } from "../../shared/sqlite";
-export declare function queueDropsForCompartmentalizedMessages(db: Database, sessionId: string, upToMessageIndex: number): void;
-//# sourceMappingURL=compartment-runner-drop-queue.d.ts.map

@@ -1,1 +1,0 @@
-{"version":3,"file":"constants.d.ts","sourceRoot":"","sources":["../../../src/hooks/auto-update-checker/constants.ts"],"names":[],"mappings":"AAGA,eAAO,MAAM,YAAY,2BAA2B,CAAC;AACrD,eAAO,MAAM,gBAAgB,+BAA+B,CAAC;AAC7D,eAAO,MAAM,iBAAiB,QAAS,CAAC;AAExC,uEAAuE;AACvE,eAAO,MAAM,SAAS,QAAsC,CAAC;AAE7D,4DAA4D;AAC5D,eAAO,MAAM,gBAAgB,QAAwC,CAAC;AAEtE,qEAAqE;AACrE,eAAO,MAAM,sBAAsB,QAAyC,CAAC"}
