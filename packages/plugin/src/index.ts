@@ -43,29 +43,43 @@ type SettingsModelOption = {
     model: string;
 };
 
-function buildModelOptions(data: unknown): SettingsModelOption[] {
+function providerList(data: unknown) {
     const providers =
         data && typeof data === "object" && "providers" in data && Array.isArray((data as { providers?: unknown }).providers)
             ? (data as { providers: unknown[] }).providers
             : data && typeof data === "object" && "all" in data && Array.isArray((data as { all?: unknown }).all)
               ? (data as { all: unknown[] }).all
               : [];
+    const connected =
+        data && typeof data === "object" && "connected" in data && Array.isArray((data as { connected?: unknown }).connected)
+            ? new Set((data as { connected: unknown[] }).connected.filter((item): item is string => typeof item === "string"))
+            : undefined;
+    return connected ? providers.filter((provider) => provider && typeof provider === "object" && connected.has(String((provider as { id?: unknown }).id))) : providers;
+}
+
+function buildModelOptions(...responses: unknown[]): SettingsModelOption[] {
     const options: SettingsModelOption[] = [];
-    for (const provider of providers) {
-        if (!provider || typeof provider !== "object") continue;
-        const record = provider as { id?: unknown; name?: unknown; models?: unknown };
-        if (typeof record.id !== "string" || !record.models || typeof record.models !== "object") continue;
-        const providerName = typeof record.name === "string" ? record.name : record.id;
-        for (const [modelID, rawModel] of Object.entries(record.models as Record<string, unknown>)) {
-            const model = rawModel && typeof rawModel === "object" ? (rawModel as { id?: unknown; name?: unknown }) : {};
-            const id = typeof model.id === "string" ? model.id : modelID;
-            const name = typeof model.name === "string" ? model.name : id;
-            options.push({
-                value: `${record.id}/${id}`,
-                label: `${providerName} · ${name}`,
-                provider: record.id,
-                model: id,
-            });
+    const seen = new Set<string>();
+    for (const response of responses) {
+        for (const provider of providerList(response)) {
+            if (!provider || typeof provider !== "object") continue;
+            const record = provider as { id?: unknown; name?: unknown; models?: unknown };
+            if (typeof record.id !== "string" || !record.models || typeof record.models !== "object") continue;
+            const providerName = typeof record.name === "string" ? record.name : record.id;
+            for (const [modelID, rawModel] of Object.entries(record.models as Record<string, unknown>)) {
+                const model = rawModel && typeof rawModel === "object" ? (rawModel as { id?: unknown; name?: unknown }) : {};
+                const id = typeof model.id === "string" ? model.id : modelID;
+                const name = typeof model.name === "string" ? model.name : id;
+                const value = `${record.id}/${id}`;
+                if (seen.has(value)) continue;
+                seen.add(value);
+                options.push({
+                    value,
+                    label: `${providerName} · ${name}`,
+                    provider: record.id,
+                    model: id,
+                });
+            }
         }
     }
     return options.sort((a, b) => a.label.localeCompare(b.label));
@@ -374,10 +388,11 @@ const server: Plugin = async (ctx) => {
                     return readPluginSettingsConfig(ctx.directory);
                 }
                 if (input.method === "kilo.models") {
-                    const result = await ctx.client.config
-                        .providers({ query: { directory: ctx.directory } })
-                        .catch(() => undefined);
-                    return { models: buildModelOptions(result?.data) };
+                    const [configured, available] = await Promise.all([
+                        ctx.client.config.providers({ query: { directory: ctx.directory } }).catch(() => undefined),
+                        ctx.client.provider.list({ query: { directory: ctx.directory } }).catch(() => undefined),
+                    ]);
+                    return { models: buildModelOptions(configured?.data, available?.data) };
                 }
                 if (input.method === "config.save") {
                     const params =
