@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { loadPluginConfig } from "./index";
+import { loadPluginConfig, readPluginSettingsConfig, savePluginSettingsConfig } from "./index";
 
 /**
  * Writes a magic-context.jsonc file inside a fresh temp Kilo config tree
@@ -258,5 +258,49 @@ describe("loadPluginConfig — user-only settings", () => {
         expect(result.auto_update).toBe(true);
         expect(result.enabled).toBe(false);
         expect(result.configWarnings?.join("\n")).toContain("Ignoring auto_update");
+    });
+});
+
+describe("plugin settings config RPC helpers", () => {
+    it("reads and writes the user Kilo Magic Context config", () => {
+        const configDir = mkdtempSync(join(tmpdir(), "mc-settings-config-"));
+        const projectDir = mkdtempSync(join(tmpdir(), "mc-settings-project-"));
+        const originalKiloConfigDir = process.env.KILO_CONFIG_DIR;
+        process.env.KILO_CONFIG_DIR = configDir;
+
+        try {
+            const initial = readPluginSettingsConfig(projectDir);
+            expect(initial.target.exists).toBe(false);
+            expect(initial.raw).toEqual({});
+
+            const saved = savePluginSettingsConfig({
+                directory: projectDir,
+                expectedMtimeMs: initial.target.mtimeMs,
+                config: {
+                    enabled: true,
+                    ctx_reduce_enabled: false,
+                    model_context_limits: {
+                        default: 200000,
+                        "openai/gpt-5.1": 400000,
+                    },
+                    historian: {
+                        thinking_level: "max",
+                    },
+                },
+            });
+
+            expect(saved.target.exists).toBe(true);
+            expect(saved.raw.ctx_reduce_enabled).toBe(false);
+            expect(saved.raw.model_context_limits).toEqual({
+                default: 200000,
+                "openai/gpt-5.1": 400000,
+            });
+            expect((saved.raw.historian as Record<string, unknown>).thinking_level).toBe("max");
+        } finally {
+            if (originalKiloConfigDir === undefined) delete process.env.KILO_CONFIG_DIR;
+            else process.env.KILO_CONFIG_DIR = originalKiloConfigDir;
+            rmSync(configDir, { recursive: true, force: true });
+            rmSync(projectDir, { recursive: true, force: true });
+        }
     });
 });

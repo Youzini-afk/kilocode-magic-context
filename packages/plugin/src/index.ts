@@ -2,7 +2,12 @@ import type { Plugin, PluginModule } from "@kilocode/plugin";
 import { DREAMER_AGENT } from "./agents/dreamer";
 import { HISTORIAN_AGENT, HISTORIAN_EDITOR_AGENT } from "./agents/historian";
 import { SIDEKICK_AGENT } from "./agents/sidekick";
-import { getPluginConfigStatus, loadPluginConfig } from "./config";
+import {
+    getPluginConfigStatus,
+    loadPluginConfig,
+    readPluginSettingsConfig,
+    savePluginSettingsConfig,
+} from "./config";
 import { getMagicContextBuiltinCommands } from "./features/builtin-commands/commands";
 import { DREAMER_SYSTEM_PROMPT } from "./features/magic-context/dreamer/task-prompts";
 import { SIDEKICK_SYSTEM_PROMPT } from "./features/magic-context/sidekick/agent";
@@ -30,6 +35,39 @@ import { refreshModelLimitsFromApi } from "./shared/models-dev-cache";
 import { MagicContextRpcServer } from "./shared/rpc-server";
 
 type SettingsRpcInput = { method: string; params?: unknown };
+
+type SettingsModelOption = {
+    value: string;
+    label: string;
+    provider: string;
+    model: string;
+};
+
+function buildModelOptions(data: unknown): SettingsModelOption[] {
+    const all =
+        data && typeof data === "object" && "all" in data && Array.isArray((data as { all?: unknown }).all)
+            ? ((data as { all: unknown[] }).all)
+            : [];
+    const options: SettingsModelOption[] = [];
+    for (const provider of all) {
+        if (!provider || typeof provider !== "object") continue;
+        const record = provider as { id?: unknown; name?: unknown; models?: unknown };
+        if (typeof record.id !== "string" || !record.models || typeof record.models !== "object") continue;
+        const providerName = typeof record.name === "string" ? record.name : record.id;
+        for (const [modelID, rawModel] of Object.entries(record.models as Record<string, unknown>)) {
+            const model = rawModel && typeof rawModel === "object" ? (rawModel as { id?: unknown; name?: unknown }) : {};
+            const id = typeof model.id === "string" ? model.id : modelID;
+            const name = typeof model.name === "string" ? model.name : id;
+            options.push({
+                value: `${record.id}/${id}`,
+                label: `${providerName} · ${name}`,
+                provider: record.id,
+                model: id,
+            });
+        }
+    }
+    return options.sort((a, b) => a.label.localeCompare(b.label));
+}
 
 const server: Plugin = async (ctx) => {
     setKiloRuntimeInfo(ctx);
@@ -329,6 +367,29 @@ const server: Plugin = async (ctx) => {
                             },
                         ],
                     };
+                }
+                if (input.method === "config.read") {
+                    return readPluginSettingsConfig(ctx.directory);
+                }
+                if (input.method === "kilo.models") {
+                    const result = await ctx.client.provider
+                        .list({ query: { directory: ctx.directory } })
+                        .catch(() => undefined);
+                    return { models: buildModelOptions(result?.data) };
+                }
+                if (input.method === "config.save") {
+                    const params =
+                        input.params && typeof input.params === "object"
+                            ? (input.params as {
+                                  expectedMtimeMs?: number | null;
+                                  config?: Record<string, unknown>;
+                              })
+                            : {};
+                    return savePluginSettingsConfig({
+                        directory: ctx.directory,
+                        expectedMtimeMs: params.expectedMtimeMs,
+                        config: params.config ?? {},
+                    });
                 }
                 throw new Error(`Unknown Magic Context settings RPC method: ${input.method}`);
             },

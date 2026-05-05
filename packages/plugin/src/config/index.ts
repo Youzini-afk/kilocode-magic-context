@@ -1,5 +1,5 @@
-import { existsSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 
 import { detectConfigFile, parseJsonc } from "../shared/jsonc-parser";
 import { getKiloConfigDir } from "../shared/data-path";
@@ -22,6 +22,8 @@ export interface MagicContextPluginConfig extends MagicContextConfig {
 
 const CONFIG_FILE_BASENAME = "kilo-magic-context";
 const LEGACY_CONFIG_FILE_BASENAME = "magic-context";
+const KILO_SCHEMA_URL =
+    "https://raw.githubusercontent.com/Kilo-Org/kilo-magic-context/main/assets/kilo-magic-context.schema.json";
 
 function getUserConfigBasePath(): string {
     return join(process.env.KILO_CONFIG_DIR?.trim() || getKiloConfigDir(), CONFIG_FILE_BASENAME);
@@ -393,6 +395,45 @@ export function loadPluginConfig(
     return config;
 }
 
+function readRawConfigFile(configPath: string): Record<string, unknown> {
+    try {
+        if (!existsSync(configPath)) return {};
+        const rawText = readFileSync(configPath, "utf-8");
+        if (!rawText.trim()) return {};
+        return parseJsonc<Record<string, unknown>>(rawText);
+    } catch {
+        return {};
+    }
+}
+
+function getFileMtimeMs(configPath: string): number | null {
+    try {
+        return existsSync(configPath) ? statSync(configPath).mtimeMs : null;
+    } catch {
+        return null;
+    }
+}
+
+function hasMtimeMismatch(configPath: string, expectedMtimeMs: number | null | undefined): boolean {
+    if (expectedMtimeMs == null) return false;
+    const current = getFileMtimeMs(configPath);
+    if (current == null) return true;
+    return Math.abs(current - expectedMtimeMs) > 1;
+}
+
+function createConfigModifiedError() {
+    const error = new Error("Config was modified outside Kilo. Reload before saving again.");
+    return Object.assign(error, { code: "CONFIG_MODIFIED" });
+}
+
+function validateSettingsConfig(config: Record<string, unknown>) {
+    const parsed = MagicContextConfigSchema.safeParse(config);
+    if (parsed.success) return;
+    const first = parsed.error.issues[0];
+    const pathLabel = first?.path.length ? first.path.join(".") : "config";
+    throw new Error(`${pathLabel}: ${first?.message ?? "Invalid Magic Context config"}`);
+}
+
 export function getPluginConfigStatus(directory: string): {
     userConfig?: string;
     projectConfig?: string;
@@ -411,4 +452,86 @@ export function getPluginConfigStatus(directory: string): {
         ...(userDetected.format !== "none" ? { userConfig: userDetected.path } : {}),
         ...(projectDetected.format !== "none" ? { projectConfig: projectDetected.path } : {}),
     };
+}
+
+export function readPluginSettingsConfig(directory: string): {
+    target: {
+        scope: "user";
+        path: string;
+        exists: boolean;
+        format: "json" | "jsonc";
+        mtimeMs: number | null;
+    };
+    project: {
+        path: string | null;
+        exists: boolean;
+        overriddenKeys: string[];
+    };
+    schemaUrl: string;
+    raw: Record<string, unknown>;
+    projectRaw: Record<string, unknown>;
+    effective: MagicContextPluginConfig & { configWarnings?: string[] };
+} {
+    const userDetected = (() => {
+        const preferred = detectConfigFile(getUserConfigBasePath());
+        if (preferred.format !== "none") return preferred;
+        return detectConfigFile(getUserLegacyConfigBasePath());
+    })();
+    const userTarget =
+        userDetected.format === "none"
+            ? { ...detectConfigFile(getUserConfigBasePath()), format: "jsonc" as const }
+            : userDetected;
+    const projectDetected =
+        getProjectConfigBasePaths(directory)
+            .map((basePath) => detectConfigFile(basePath))
+            .find((detected) => detected.format !== "none") ?? detectConfigFile(join(directory, CONFIG_FILE_BASENAME));
+    const projectExists = projectDetected.format !== "none";
+    const projectRaw = projectExists ? readRawConfigFile(projectDetected.path) : {};
+
+    return {
+        target: {
+            scope: "user",
+            path: userTarget.path,
+            exists: userDetected.format !== "none",
+            format: userTarget.format === "json" ? "json" : "jsonc",
+            mtimeMs: getFileMtimeMs(userTarget.path),
+        },
+        project: {
+            path: projectExists ? projectDetected.path : null,
+            exists: projectExists,
+            overriddenKeys: Object.keys(projectRaw).sort(),
+        },
+        schemaUrl: KILO_SCHEMA_URL,
+        raw: userDetected.format === "none" ? {} : readRawConfigFile(userDetected.path),
+        projectRaw,
+        effective: loadPluginConfig(directory),
+    };
+}
+
+export function savePluginSettingsConfig(input: {
+    directory: string;
+    expectedMtimeMs?: number | null;
+    config: Record<string, unknown>;
+}): ReturnType<typeof readPluginSettingsConfig> {
+    const detected = (() => {
+        const preferred = detectConfigFile(getUserConfigBasePath());
+        if (preferred.format !== "none") return preferred;
+        const legacy = detectConfigFile(getUserLegacyConfigBasePath());
+        if (legacy.format !== "none") return legacy;
+        return { ...detectConfigFile(getUserConfigBasePath()), format: "jsonc" as const };
+    })();
+    const targetPath = detected.path;
+    if (hasMtimeMismatch(targetPath, input.expectedMtimeMs)) {
+        throw createConfigModifiedError();
+    }
+
+    const config = { ...(input.config ?? {}) };
+    if (!("$schema" in config)) {
+        config.$schema = KILO_SCHEMA_URL;
+    }
+    validateSettingsConfig(config);
+
+    mkdirSync(dirname(targetPath), { recursive: true });
+    writeFileSync(targetPath, `${JSON.stringify(config, null, 2)}\n`, "utf-8");
+    return readPluginSettingsConfig(input.directory);
 }

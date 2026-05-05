@@ -192,6 +192,54 @@
         overflow: hidden;
       }
 
+      details.section summary {
+        list-style: none;
+        cursor: pointer;
+      }
+
+      details.section summary::-webkit-details-marker {
+        display: none;
+      }
+
+      details.section:not([open]) .section-head {
+        border-bottom: 0;
+      }
+
+      .chevron {
+        color: var(--muted);
+        font-size: 12px;
+        margin-top: 2px;
+      }
+
+      details[open] .chevron {
+        transform: rotate(90deg);
+      }
+
+      .preset {
+        display: grid;
+        gap: 8px;
+        padding: 12px;
+      }
+
+      .preset-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 8px;
+      }
+
+      .preset-card {
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        background: var(--panel-2);
+        padding: 10px;
+        text-align: left;
+      }
+
+      .preset-card.active {
+        border-color: var(--accent);
+        box-shadow: inset 0 0 0 1px var(--accent);
+      }
+
       .section-head {
         display: flex;
         gap: 10px;
@@ -671,6 +719,14 @@
           "Age-tier compression when ctx_reduce is disabled.": "ctx_reduce 禁用时按年龄分层压缩。",
           "Caveman min chars": "Caveman 最小字符数",
           "Minimum text length for caveman compression.": "执行 caveman 压缩的最小文本长度。",
+          "Quick setup": "快速设置",
+          "Start from a sensible default. Most users only need to pick models/providers.": "从合理默认值开始。大多数用户只需要选择模型/提供商。",
+          "Recommended": "推荐",
+          "Balanced defaults. Choose providers/models and leave most settings alone.": "平衡的默认配置。选择模型/提供商后，其余设置通常不用改。",
+          "Light": "轻量",
+          "Memory and safe cleanup with fewer background features.": "保留记忆和安全清理，减少后台功能。",
+          "Advanced": "高级",
+          "Expose all controls for custom tuning.": "显示所有控制项，适合自定义调优。",
         },
       };
       textMessages.zhHant = textMessages.zhHans;
@@ -688,6 +744,8 @@
         pending: new Map(),
         status: null,
         configPayload: null,
+        modelOptions: [],
+        preset: "recommended",
         draft: {},
         rawText: "{}",
         doctor: null,
@@ -755,6 +813,29 @@
 
       function resetPath(path) {
         setPath(path, undefined);
+        render();
+      }
+
+      function applyPreset(id) {
+        state.preset = id;
+        const next = clone(state.draft);
+        if (id === "recommended") {
+          next.enabled = true;
+          next.ctx_reduce_enabled = true;
+          next.memory = { ...(next.memory ?? {}), enabled: true, auto_promote: true };
+          next.compressor = { ...(next.compressor ?? {}), enabled: true };
+        }
+        if (id === "minimal") {
+          next.enabled = true;
+          next.ctx_reduce_enabled = true;
+          next.memory = { ...(next.memory ?? {}), enabled: true, auto_promote: false };
+          next.compressor = { ...(next.compressor ?? {}), enabled: false };
+          next.dreamer = { ...(next.dreamer ?? {}), enabled: false };
+          next.sidekick = { ...(next.sidekick ?? {}), enabled: false };
+        }
+        state.draft = next;
+        state.rawText = JSON.stringify(state.draft, null, 2);
+        state.dirty = true;
         render();
       }
 
@@ -878,7 +959,12 @@
       function select(label, path, hint, options) {
         const value = getPath(state.draft, path) ?? "";
         const htmlOptions = [`<option value="">${esc(t("inherit"))}</option>`]
-          .concat(options.map((option) => `<option value="${esc(option)}" ${value === option ? "selected" : ""}>${esc(option)}</option>`))
+          .concat(
+            options.map((option) => {
+              const item = typeof option === "string" ? { value: option, label: option } : option;
+              return `<option value="${esc(item.value)}" ${value === item.value ? "selected" : ""}>${esc(item.label)}</option>`;
+            }),
+          )
           .join("");
         return row(
           label,
@@ -886,6 +972,12 @@
           hint,
           `<div class="control-line"><select class="grow" data-kind="text" data-path="${esc(path)}">${htmlOptions}</select><button data-reset="${esc(path)}">${esc(t("reset"))}</button></div>`,
         );
+      }
+
+      function modelSelect(label, path, hint) {
+        return state.modelOptions.length
+          ? select(label, path, hint, state.modelOptions)
+          : text(label, path, `${hint} Configure Kilo providers first to enable a model picker.`, "openai/gpt-5.1");
       }
 
       function json(label, path, hint, placeholder = "") {
@@ -915,17 +1007,19 @@
         );
       }
 
-      function section(title, desc, rows) {
+      function section(title, desc, rows, options = {}) {
+        const open = options.open === false ? "" : "open";
         return `
-          <section class="section">
-            <div class="section-head">
+          <details class="section" ${open}>
+            <summary class="section-head">
               <div>
                 <div class="section-title">${esc(tx(title))}</div>
                 ${desc ? `<div class="section-desc">${esc(tx(desc))}</div>` : ""}
               </div>
-            </div>
+              <div class="chevron">›</div>
+            </summary>
             <div class="rows">${rows.join("")}</div>
-          </section>
+          </details>
         `;
       }
 
@@ -962,6 +1056,7 @@
 
       function renderCore() {
         return [
+          renderPresets(),
           section(t("coreTitle"), t("coreDesc"), [
             toggle("Enabled", "enabled", "Turns Magic Context on or off."),
             toggle("Agent controlled reduction", "ctx_reduce_enabled", "Shows ctx_reduce to the agent and enables reduction nudges."),
@@ -984,11 +1079,44 @@
         ].join("");
       }
 
+      function renderPresets() {
+        const mode = state.preset;
+        const cards = [
+          ["recommended", "Recommended", "Balanced defaults. Choose providers/models and leave most settings alone."],
+          ["minimal", "Light", "Memory and safe cleanup with fewer background features."],
+          ["advanced", "Advanced", "Expose all controls for custom tuning."],
+        ];
+        return `
+          <section class="section">
+            <div class="section-head">
+              <div>
+                <div class="section-title">${esc(tx("Quick setup"))}</div>
+                <div class="section-desc">${esc(tx("Start from a sensible default. Most users only need to pick models/providers."))}</div>
+              </div>
+            </div>
+            <div class="preset">
+              <div class="preset-grid">
+                ${cards
+                  .map(
+                    ([id, title, desc]) => `
+                      <button class="preset-card ${mode === id ? "active" : ""}" data-preset="${esc(id)}">
+                        <strong>${esc(tx(title))}</strong>
+                        <div class="hint">${esc(tx(desc))}</div>
+                      </button>
+                    `,
+                  )
+                  .join("")}
+              </div>
+            </div>
+          </section>
+        `;
+      }
+
       function agentCard(id, title, desc) {
         const reasoning = ["off", "minimal", "low", "medium", "high", "xhigh", "max"];
         const rows = [
           id !== "historian" ? toggle(`${title} enabled`, `${id}.enabled`, `Enables ${title.toLowerCase()} background or augmentation flow.`) : "",
-          text("Primary model", `${id}.model`, "Provider/model id. Empty uses the built-in fallback chain.", "openai/gpt-5.1"),
+          modelSelect("Primary model", `${id}.model`, "Provider/model id. Empty uses the built-in fallback chain."),
           lines("Fallback models", `${id}.fallback_models`, "One model per line. Used when the primary model fails or is unset.", "github-copilot/claude-sonnet-4-5\nopenai/gpt-5.1"),
           text("Variant", `${id}.variant`, "Provider variant or reasoning preset passthrough.", "thinking"),
           select("Thinking level", `${id}.thinking_level`, "Kilo-compatible reasoning level passthrough.", reasoning),
@@ -1020,7 +1148,7 @@
             text("System prompt", "sidekick.system_prompt", "Optional sidekick system prompt override."),
           );
         }
-        return section(title, desc, rows.filter(Boolean));
+        return section(title, desc, rows.filter(Boolean), { open: id === "historian" });
       }
 
       function renderAgents() {
@@ -1123,9 +1251,14 @@
         state.error = "";
         render();
         try {
-          const [status, config] = await Promise.all([rpc("status"), rpc("config.read")]);
+          const [status, config, models] = await Promise.all([
+            rpc("status"),
+            rpc("config.read"),
+            rpc("kilo.models").catch(() => ({ models: [] })),
+          ]);
           state.status = status;
           state.configPayload = config;
+          state.modelOptions = Array.isArray(models?.models) ? models.models : [];
           state.draft = clone(config.raw ?? {});
           state.rawText = JSON.stringify(state.draft, null, 2);
           state.dirty = false;
@@ -1190,6 +1323,11 @@
         const reset = event.target.closest("[data-reset]")?.getAttribute("data-reset");
         if (reset) {
           resetPath(reset);
+          return;
+        }
+        const preset = event.target.closest("[data-preset]")?.getAttribute("data-preset");
+        if (preset) {
+          applyPreset(preset);
           return;
         }
         const action = event.target.closest("[data-action]")?.getAttribute("data-action");
