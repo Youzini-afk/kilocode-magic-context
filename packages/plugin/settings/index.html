@@ -87,21 +87,20 @@
       .shell {
         min-height: 100vh;
         display: grid;
-        grid-template-rows: auto auto 1fr auto;
-        gap: 12px;
-        padding: 14px;
+        grid-template-rows: auto auto 1fr;
+        gap: 10px;
+        padding: 10px 14px 14px;
       }
 
       .topbar {
         display: flex;
         gap: 10px;
-        align-items: flex-start;
+        align-items: center;
         justify-content: space-between;
       }
 
       .title {
-        display: grid;
-        gap: 3px;
+        min-width: 0;
       }
 
       h1 {
@@ -110,15 +109,10 @@
         font-weight: 650;
       }
 
-      .subtitle,
       .hint,
       .path,
       .micro {
         color: var(--muted);
-      }
-
-      .subtitle {
-        font-size: 12px;
       }
 
       .actions {
@@ -366,39 +360,13 @@
         line-height: 1.45;
       }
 
-      .footer {
-        position: sticky;
-        bottom: 0;
-        display: flex;
-        gap: 10px;
-        align-items: center;
-        justify-content: space-between;
-        padding-top: 8px;
-        border-top: 1px solid var(--border);
-        background: var(--bg);
-      }
-
-      .footer-left {
-        min-width: 0;
-        display: grid;
-        gap: 2px;
-      }
-
       .path {
         font-size: 11px;
         word-break: break-word;
       }
 
-      .footer-actions {
-        display: flex;
-        gap: 7px;
-        flex-wrap: wrap;
-        justify-content: flex-end;
-      }
-
       @media (max-width: 780px) {
-        .topbar,
-        .footer {
+        .topbar {
           align-items: stretch;
           flex-direction: column;
         }
@@ -412,8 +380,7 @@
           grid-template-columns: 1fr;
         }
 
-        .actions,
-        .footer-actions {
+        .actions {
           justify-content: flex-start;
         }
       }
@@ -451,7 +418,7 @@
           subtitle: "Context management, memory, historian, dreamer, sidekick, and model budget settings.",
           tabOverview: "Overview",
           tabCore: "Core",
-          tabAgents: "Agents",
+          tabAgents: "API",
           tabMemory: "Memory",
           tabAdvanced: "Advanced",
           enabled: "Enabled",
@@ -504,7 +471,7 @@
           subtitle: "上下文管理、记忆、Historian、Dreamer、Sidekick 与模型预算设置。",
           tabOverview: "概览",
           tabCore: "核心",
-          tabAgents: "代理",
+          tabAgents: "API",
           tabMemory: "记忆",
           tabAdvanced: "高级",
           enabled: "已启用",
@@ -556,7 +523,7 @@
           subtitle: "上下文管理、記憶、Historian、Dreamer、Sidekick 與模型預算設定。",
           tabOverview: "概覽",
           tabCore: "核心",
-          tabAgents: "代理",
+          tabAgents: "API",
           tabMemory: "記憶",
           tabAdvanced: "進階",
           enabled: "已啟用",
@@ -1215,17 +1182,15 @@
       }
 
       function render() {
-        const target = state.configPayload?.target;
-        const title = state.dirty ? t("unsaved") : t("ready");
         app.innerHTML = `
           <div class="topbar">
             <div class="title">
               <h1>${esc(t("title"))}</h1>
-              <div class="subtitle">${esc(t("subtitle"))}</div>
             </div>
             <div class="actions">
               <button data-action="refresh">${esc(t("refresh"))}</button>
               <button data-action="doctor">${esc(t("doctor"))}</button>
+              <button data-action="discard" ${!state.dirty ? "disabled" : ""}>${esc(t("discard"))}</button>
               <button class="primary" data-action="save" ${state.saving || !state.dirty ? "disabled" : ""}>${esc(state.saving ? t("saving") : t("save"))}</button>
             </div>
           </div>
@@ -1235,16 +1200,6 @@
               .join("")}
           </div>
           <main class="content">${renderTab()}</main>
-          <div class="footer">
-            <div class="footer-left">
-              <div class="micro">${esc(title)}</div>
-              <div class="path">${esc(target?.path ?? "")}</div>
-            </div>
-            <div class="footer-actions">
-              <button data-action="discard" ${!state.dirty ? "disabled" : ""}>${esc(t("discard"))}</button>
-              <button class="primary" data-action="save" ${state.saving || !state.dirty ? "disabled" : ""}>${esc(state.saving ? t("saving") : t("saveChanges"))}</button>
-            </div>
-          </div>
         `;
       }
 
